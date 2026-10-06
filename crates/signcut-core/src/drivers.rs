@@ -251,9 +251,10 @@ impl DriverFile {
             use_knife_compensation: b("UseKnifeCompensation", true),
             default_blade_offset: f("DefaultBladeOffset").unwrap_or(0.25),
             default_baud: f("DefaultBaud").map(|v| v as u32).unwrap_or(9600),
-            rts: b("RTS", false),
-            cts: b("CTS", false),
-            dtr: b("DTR", false),
+            // SignCut defaults (default_config.xml): RTS, CTS and DTR on, DSR off.
+            rts: b("RTS", true),
+            cts: b("CTS", true),
+            dtr: b("DTR", true),
             dsr: b("DSR", false),
             vendor_id: f("VendorID").map(|v| v as u16),
             product_id: f("ProductID").map(|v| v as u16),

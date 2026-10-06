@@ -391,7 +391,10 @@ mod tests {
         assert_eq!(h.join().unwrap().len(), 10_000);
     }
 
-    #[cfg(unix)]
+    // Linux only: on macOS, serialport sets the baud rate with the IOSSIOSPEED
+    // ioctl, which real /dev/cu.* drivers support but pseudo-terminals reject
+    // with ENOTTY, so a pty cannot stand in for a cutter there.
+    #[cfg(target_os = "linux")]
     #[test]
     fn serial_port_sends_over_pty() {
         use serialport::SerialPort;

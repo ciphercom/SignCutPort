@@ -2,6 +2,8 @@
 import fixture from "./fixture.json";
 import type { ImportedDesign, JobPreview, JobRequest, PortInfo } from "../types";
 
+const mockFonts: { file: string; families: string[] }[] = [{ file: "Lobster-Regular.ttf", families: ["Lobster"] }];
+
 const listeners = new Map<string, ((p: unknown) => void)[]>();
 
 export function mockListen(event: string, cb: (p: unknown) => void) {
@@ -116,6 +118,16 @@ export async function mockInvoke(cmd: string, args?: Record<string, unknown>): P
   switch (cmd) {
     case "fonts_list":
       return fixture.fonts;
+    case "fonts_imported":
+      return mockFonts;
+    case "fonts_import":
+      mockFonts.push({ file: "MyCustomFont-Bold.otf", families: ["MyCustomFont"] });
+      return { families: ["MyCustomFont"], errors: [] };
+    case "fonts_remove":
+      mockFonts.splice(0, mockFonts.length, ...mockFonts.filter((f) => f.file !== args?.file));
+      return null;
+    case "fonts_folder":
+      return "~/Library/Application Support/com.signcutport.app/fonts";
     case "machines_list":
       return fixture.machines;
     case "machine_profile":

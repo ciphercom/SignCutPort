@@ -1,6 +1,7 @@
 const paths: Record<string, string> = {
   import: "M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3",
   text: "M5 5h14M12 5v14M9 19h6",
+  font: "M4 19L9.5 5h1L16 19M6.3 14h7.4M17 12h4M19 10v9",
   undo: "M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3",
   redo: "M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3",
   duplicate: "M8 8h12v12H8zM4 16V4h12",

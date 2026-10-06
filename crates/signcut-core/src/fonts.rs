@@ -245,6 +245,39 @@ impl FontLibrary {
         Ok(dedup_sorted(added))
     }
 
+    /// Load every font file in `dir` (the app's own font library).
+    pub fn add_dir(&mut self, dir: &Path) {
+        if !dir.is_dir() {
+            return;
+        }
+        Arc::make_mut(&mut self.db).load_fonts_dir(dir);
+        self.index = Arc::new(build_index(&self.db));
+    }
+
+    /// Families provided by font files located inside `dir`, per file name.
+    pub fn families_in_dir(&self, dir: &Path) -> Vec<(String, Vec<String>)> {
+        let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        let canon = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+        for f in self.db.faces() {
+            let p = match &f.source {
+                Source::File(p) => p.clone(),
+                #[allow(unreachable_patterns)]
+                Source::SharedFile(p, _) => p.clone(),
+                _ => continue,
+            };
+            if !(p.starts_with(&canon) || p.starts_with(dir)) {
+                continue;
+            }
+            let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            let fam = self.index.display_family.get(&f.id).cloned().unwrap_or_default();
+            let e = map.entry(name).or_default();
+            if !e.contains(&fam) {
+                e.push(fam);
+            }
+        }
+        map.into_iter().collect()
+    }
+
     /// Add font bytes (e.g. an @font-face embedded in an SVG).
     pub fn add_font_data(&mut self, data: Vec<u8>) -> Vec<String> {
         let before: std::collections::HashSet<ID> = self.db.faces().map(|f| f.id).collect();
@@ -616,6 +649,58 @@ fn load_legacy_mac_fonts_in_dir(db: &mut Database, dir: &Path, depth: usize) {
     }
 }
 
+/// Copy a font file into the app's font library folder `dir` so it is
+/// available on every start. Legacy `.dfont`/suitcase files are converted to
+/// one `.ttf`/`.otf` per face. Returns the files written.
+pub fn install_font_file(src: &Path, dir: &Path) -> Result<Vec<PathBuf>, String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("Cannot create {}: {e}", dir.display()))?;
+    let stem = src
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "font".into());
+    let ext = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let data = std::fs::read(src).map_err(|e| format!("Cannot read {}: {e}", src.display()))?;
+    let is_sfnt = |d: &[u8]| ttf_parser::fonts_in_collection(d).is_some() || ttf_parser::Face::parse(d, 0).is_ok();
+    let mut written = Vec::new();
+    if matches!(ext.as_str(), "ttf" | "otf" | "ttc" | "otc") || is_sfnt(&data) {
+        if !is_sfnt(&data) {
+            return Err(format!("{} is not a valid font file", src.display()));
+        }
+        let ext = if ext.is_empty() { "ttf".to_string() } else { ext };
+        let dst = dir.join(format!("{stem}.{ext}"));
+        std::fs::write(&dst, &data).map_err(|e| e.to_string())?;
+        written.push(dst);
+    } else {
+        let mut faces = extract_sfnt_resources(&data);
+        if faces.is_empty() {
+            let rsrc = PathBuf::from(format!("{}/..namedfork/rsrc", src.display()));
+            if let Ok(r) = std::fs::read(rsrc) {
+                faces = extract_sfnt_resources(&r);
+            }
+        }
+        for (i, f) in faces.into_iter().enumerate() {
+            if ttf_parser::Face::parse(&f, 0).is_err() {
+                continue;
+            }
+            let ext = if f.starts_with(b"OTTO") { "otf" } else { "ttf" };
+            let dst = dir.join(format!("{stem}-{i}.{ext}"));
+            std::fs::write(&dst, &f).map_err(|e| e.to_string())?;
+            written.push(dst);
+        }
+        if written.is_empty() {
+            return Err(format!(
+                "No usable outline font in {} (PostScript Type 1 and bitmap fonts are not supported)",
+                src.display()
+            ));
+        }
+    }
+    Ok(written)
+}
+
 /// Load sfnt resources from a `.dfont` (data-fork resource file) or a classic
 /// font suitcase (resource fork). Returns the number of faces loaded.
 pub fn load_legacy_mac_font(db: &mut Database, path: &Path) -> usize {
@@ -754,5 +839,35 @@ mod tests {
     #[test]
     fn resource_fork_parse_empty() {
         assert!(extract_sfnt_resources(&[0u8; 10]).is_empty());
+    }
+
+    #[test]
+    fn install_rejects_garbage() {
+        let dir = std::env::temp_dir().join(format!("scp-fonts-{}", std::process::id()));
+        let src = dir.join("junk.ttf");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(&src, b"not a font").unwrap();
+        assert!(install_font_file(&src, &dir.join("lib")).is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn install_and_load_system_font_copy() {
+        let Some(src) = ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/System/Library/Fonts/Supplemental/Arial.ttf"]
+            .iter()
+            .map(PathBuf::from)
+            .find(|p| p.exists())
+        else {
+            return;
+        };
+        let dir = std::env::temp_dir().join(format!("scp-fontlib-{}", std::process::id()));
+        let files = install_font_file(&src, &dir).unwrap();
+        assert_eq!(files.len(), 1);
+        let mut lib = FontLibrary::empty();
+        lib.add_dir(&dir);
+        let fams = lib.families_in_dir(&dir);
+        assert_eq!(fams.len(), 1, "{fams:?}");
+        assert!(lib.resolve(&fams[0].1[0], 400, false).is_some());
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

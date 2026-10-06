@@ -25,6 +25,8 @@ struct JobControl {
 
 struct AppState {
     fonts: Mutex<Option<FontLibrary>>,
+    /// The app's own font library (fonts imported once by the user).
+    fonts_dir: Mutex<Option<PathBuf>>,
     catalog: Mutex<Catalog>,
     job: Mutex<Option<JobControl>>,
 }
@@ -33,9 +35,21 @@ impl AppState {
     fn fonts(&self) -> FontLibrary {
         let mut g = self.fonts.lock().unwrap();
         if g.is_none() {
-            *g = Some(FontLibrary::system());
+            let mut lib = FontLibrary::system();
+            if let Some(dir) = self.fonts_dir.lock().unwrap().clone() {
+                lib.add_dir(&dir);
+            }
+            *g = Some(lib);
         }
         g.as_ref().unwrap().clone()
+    }
+
+    fn fonts_dir(&self) -> Res<PathBuf> {
+        self.fonts_dir
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or_else(|| "App data folder is not available".to_string())
     }
 }
 
@@ -54,16 +68,89 @@ async fn fonts_list(app: AppHandle) -> Res<Vec<FontFamilyInfo>> {
     blocking(move || Ok(app.state::<AppState>().fonts().families())).await
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FontImportResult {
+    families: Vec<String>,
+    errors: Vec<String>,
+}
+
+/// Import font files into the app's own font library. They are copied, so
+/// they stay available after restarts even if the originals are removed.
 #[tauri::command]
-async fn fonts_add_file(app: AppHandle, path: String) -> Res<Vec<String>> {
+async fn fonts_import(app: AppHandle, paths: Vec<String>) -> Res<FontImportResult> {
     blocking(move || {
         let st = app.state::<AppState>();
+        let dir = st.fonts_dir()?;
         let mut lib = st.fonts();
-        let added = lib.add_font_file(&PathBuf::from(&path))?;
+        let mut families = Vec::new();
+        let mut errors = Vec::new();
+        for p in paths {
+            match signcut_core::fonts::install_font_file(&PathBuf::from(&p), &dir) {
+                Ok(files) => {
+                    for f in files {
+                        match lib.add_font_file(&f) {
+                            Ok(mut fams) => families.append(&mut fams),
+                            Err(e) => errors.push(e),
+                        }
+                    }
+                }
+                Err(e) => errors.push(e),
+            }
+        }
         *st.fonts.lock().unwrap() = Some(lib);
-        Ok(added)
+        families.sort();
+        families.dedup();
+        Ok(FontImportResult { families, errors })
     })
     .await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportedFontFile {
+    file: String,
+    families: Vec<String>,
+}
+
+#[tauri::command]
+async fn fonts_imported(app: AppHandle) -> Res<Vec<ImportedFontFile>> {
+    blocking(move || {
+        let st = app.state::<AppState>();
+        let dir = st.fonts_dir()?;
+        Ok(st
+            .fonts()
+            .families_in_dir(&dir)
+            .into_iter()
+            .map(|(file, families)| ImportedFontFile { file, families })
+            .collect())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn fonts_remove(app: AppHandle, file: String) -> Res<()> {
+    blocking(move || {
+        let st = app.state::<AppState>();
+        let dir = st.fonts_dir()?;
+        // Only plain file names inside our own folder.
+        if file.contains('/') || file.contains("..") {
+            return Err("Invalid font file name".into());
+        }
+        std::fs::remove_file(dir.join(&file)).map_err(|e| e.to_string())?;
+        // Rebuild the index without the removed font.
+        *st.fonts.lock().unwrap() = None;
+        let _ = st.fonts();
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+fn fonts_folder(state: State<AppState>) -> Res<String> {
+    let dir = state.fonts_dir()?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.display().to_string())
 }
 
 // ---------------------------------------------------------------- import
@@ -397,10 +484,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             fonts: Mutex::new(None),
+            fonts_dir: Mutex::new(None),
             catalog: Mutex::new(Catalog::builtin()),
             job: Mutex::new(None),
         })
         .setup(|app| {
+            if let Ok(dir) = app.path().app_data_dir() {
+                *app.state::<AppState>().fonts_dir.lock().unwrap() = Some(dir.join("fonts"));
+            }
             // Index fonts in the background so the first import is fast.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -411,7 +502,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             fonts_list,
-            fonts_add_file,
+            fonts_import,
+            fonts_imported,
+            fonts_remove,
+            fonts_folder,
             import_file,
             text_render,
             supported_extensions,
@@ -457,6 +551,7 @@ mod tests {
         let job: JobRequest = serde_json::from_str(UI_JOB).unwrap();
         let state = AppState {
             fonts: Mutex::new(None),
+            fonts_dir: Mutex::new(None),
             catalog: Mutex::new(Catalog::builtin()),
             job: Mutex::new(None),
         };

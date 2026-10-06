@@ -29,7 +29,10 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
 
 export const api = {
   fontsList: () => call<FontFamilyInfo[]>("fonts_list"),
-  fontsAddFile: (path: string) => call<string[]>("fonts_add_file", { path }),
+  fontsImport: (paths: string[]) => call<{ families: string[]; errors: string[] }>("fonts_import", { paths }),
+  fontsImported: () => call<{ file: string; families: string[] }[]>("fonts_imported"),
+  fontsRemove: (file: string) => call<void>("fonts_remove", { file }),
+  fontsFolder: () => call<string>("fonts_folder"),
   importFile: (path: string, options?: ImportOptions) =>
     call<ImportedDesign>("import_file", { path, options: options ?? null }),
   textRender: (request: TextRequest) => call<ImportedDesign>("text_render", { request }),

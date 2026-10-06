@@ -70,3 +70,24 @@ fn text_tool_size_is_in_mm() {
     assert!((d.height_mm - 72.9).abs() < 1.0, "{}", d.height_mm);
     assert!(d.font_issues.is_empty());
 }
+
+/// macOS system fonts: Helvetica Neue ships as a .ttc where Bold is not the
+/// first face (SignCut only indexes face 0), and Illustrator writes
+/// PostScript names such as "HelveticaNeue-Bold" / "Arial-BoldMT".
+#[test]
+fn macos_ttc_faces_and_postscript_names() {
+    let Some(lib) = lib_with("Helvetica Neue") else { return };
+    let id = lib.resolve("Helvetica Neue", 700, false).expect("bold face");
+    assert_eq!(lib.db().face(id).unwrap().weight.0, 700);
+    let id = lib.resolve("HelveticaNeue-Bold", 400, false).expect("postscript name");
+    assert_eq!(lib.db().face(id).unwrap().weight.0, 700);
+    if lib.families().iter().any(|f| f.family == "Arial") {
+        let id = lib.resolve("Arial-BoldMT", 400, false).expect("Arial-BoldMT");
+        assert_eq!(lib.db().face(id).unwrap().weight.0, 700);
+    }
+    let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100">
+      <text x="0" y="50" font-family="'HelveticaNeue-Bold'" font-size="40">Bold</text>
+      <text x="0" y="90" style="font-family:'Helvetica Neue';font-weight:bold;font-style:italic" font-size="40">Both</text></svg>"#;
+    let d = import_svg(svg, "t", &lib, &ImportOptions::default()).unwrap();
+    assert!(d.font_issues.is_empty(), "{:?}", d.font_issues);
+}

@@ -15,6 +15,7 @@ import { Canvas, CanvasHandle } from "./components/Canvas";
 import { ObjectsPanel, PropertiesPanel, SheetPanel } from "./components/Panels";
 import { TextDialog } from "./components/TextDialog";
 import { FontIssuesDialog } from "./components/FontIssuesDialog";
+import { FontsDialog } from "./components/FontsDialog";
 import { CutConfig, CutDialog, DEFAULT_ENCODE, DEFAULT_SETTINGS } from "./components/CutDialog";
 import { Icon } from "./components/Icons";
 import { arrange, flipObjects, modelLabel, newId, objectBox, rotateObjects, toJobObject, unionBox } from "./geometry";
@@ -64,6 +65,7 @@ function loadPersisted(): Persisted {
 }
 
 const IMPORT_EXT = ["svg", "dxf", "plt", "hpgl", "hpg"];
+const FONT_EXT = ["ttf", "otf", "ttc", "otc", "dfont"];
 
 export default function App() {
   const persisted = useMemo(loadPersisted, []);
@@ -78,6 +80,7 @@ export default function App() {
   const [textDlg, setTextDlg] = useState<{ edit?: DesignObject } | null>(null);
   const [fontDlg, setFontDlg] = useState<DesignObject | null>(null);
   const [cutOpen, setCutOpen] = useState(false);
+  const [fontsOpen, setFontsOpen] = useState(false);
   const [toast, setToast] = useState<{ text: string; kind: "info" | "warn" | "error" } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [dropHover, setDropHover] = useState(false);
@@ -233,6 +236,11 @@ export default function App() {
   );
 
   const openPath = async (path: string) => {
+    const ext = path.split(".").pop()?.toLowerCase() ?? "";
+    if (FONT_EXT.includes(ext)) {
+      await importFonts([path]);
+      return;
+    }
     if (path.toLowerCase().endsWith(".scport")) {
       try {
         const f = parseDoc(await api.docLoad(path));
@@ -267,17 +275,20 @@ export default function App() {
     }
   };
 
-  const loadFontFile = async () => {
-    const paths = await dialogs.openFiles("Font files", ["ttf", "otf", "ttc", "otc", "dfont"]);
-    for (const p of paths) {
-      try {
-        const fams = await api.fontsAddFile(p);
-        notify(`Loaded ${fams.join(", ")}`);
-      } catch (e) {
-        notify(String(e), "error");
-      }
+  const importFonts = async (paths: string[]) => {
+    if (!paths.length) return;
+    try {
+      const r = await api.fontsImport(paths);
+      if (r.families.length) notify(`Imported ${r.families.join(", ")} — available from now on.`);
+      if (r.errors.length) notify(r.errors.join(" "), "error");
+    } catch (e) {
+      notify(String(e), "error");
     }
     setFonts(await api.fontsList());
+  };
+
+  const loadFontFile = async () => {
+    await importFonts(await dialogs.openFiles("Font files", FONT_EXT));
   };
 
   const selected = state.objects.filter((o) => state.selection.includes(o.id));
@@ -393,7 +404,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT") return;
-      if (textDlg || fontDlg || cutOpen) return;
+      if (textDlg || fontDlg || cutOpen || fontsOpen) return;
       const a = act.current;
       const cmd = e.metaKey || e.ctrlKey;
       const k = e.key.toLowerCase();
@@ -426,7 +437,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [doc, textDlg, fontDlg, cutOpen]);
+  }, [doc, textDlg, fontDlg, cutOpen, fontsOpen]);
 
   // Drag & drop from Finder.
   const importRef = useRef(openPath);
@@ -478,6 +489,9 @@ export default function App() {
           </button>
           <button onClick={() => setTextDlg({})} title="Add text with any installed font (⌘T)">
             <Icon name="text" /> Text
+          </button>
+          <button onClick={() => setFontsOpen(true)} title="Fonts: import font files into SignCut Port">
+            <Icon name="font" /> Fonts
           </button>
         </div>
         <div className="tb-group">
@@ -635,6 +649,7 @@ export default function App() {
           onLoadFont={loadFontFile}
         />
       )}
+      {fontsOpen && <FontsDialog onClose={() => setFontsOpen(false)} onImport={loadFontFile} systemFamilies={fonts.length} />}
       {fontDlg && (
         <FontIssuesDialog
           object={state.objects.find((o) => o.id === fontDlg.id) ?? fontDlg}

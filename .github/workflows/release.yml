@@ -1,0 +1,74 @@
+name: release
+
+# Push a tag like v0.1 to build the macOS app and publish it as a GitHub Release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build and release"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-14
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tests
+        run: cargo test -p signcut-core
+
+      - name: Build universal app (ad-hoc signed, identity "-")
+        env:
+          APPLE_SIGNING_IDENTITY: "-"
+        run: npx tauri build --target universal-apple-darwin
+
+      - name: Verify signature and package
+        run: |
+          set -euo pipefail
+          BUNDLE=target/universal-apple-darwin/release/bundle
+          APP="$BUNDLE/macos/SignCut Port.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv "$APP" 2>&1 | tee sig.txt
+          grep -q "Signature=adhoc" sig.txt
+          for b in "$APP"/Contents/MacOS/*; do echo "$b: $(lipo -archs "$b")"; done
+          mkdir -p out
+          ditto -c -k --keepParent "$APP" "out/SignCut-Port-${TAG}-macOS-universal.app.zip"
+          cp "$BUNDLE"/dmg/*.dmg "out/SignCut-Port-${TAG}-macOS-universal.dmg"
+          (cd out && shasum -a 256 * > SHA256SUMS.txt)
+          ls -la out
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: SignCut Port ${{ env.TAG }}
+          files: out/*
+          body: |
+            SignCut Port for macOS (universal: Apple Silicon + Intel, macOS 10.15+).
+
+            **Install**
+            1. Download `SignCut-Port-${{ env.TAG }}-macOS-universal.dmg` and drag *SignCut Port* to Applications.
+            2. The app is ad-hoc signed (not notarized). On first launch macOS will refuse to open it:
+               - macOS 15+: open **System Settings › Privacy & Security**, scroll down and click **Open Anyway** for SignCut Port.
+               - macOS 14 and older: right-click the app › **Open** › **Open**.
+               - Or in Terminal: `xattr -dr com.apple.quarantine "/Applications/SignCut Port.app"`
+            3. After that it opens normally.
+
+            See the README for connecting a VEVOR cutter and the first test cut.

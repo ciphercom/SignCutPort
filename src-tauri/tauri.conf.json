@@ -27,7 +27,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "category": "Graphics and Design",
     "shortDescription": "Vinyl cutter software",
     "icon": [
@@ -38,10 +41,19 @@
       "icons/icon.ico"
     ],
     "fileAssociations": [
-      { "ext": ["scport"], "name": "SignCut Port document", "role": "Editor" }
+      {
+        "ext": [
+          "scport"
+        ],
+        "name": "SignCut Port document",
+        "role": "Editor"
+      }
     ],
     "macOS": {
-      "minimumSystemVersion": "10.15"
-    }
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": "-",
+      "hardenedRuntime": false
+    },
+    "copyright": "SignCut Port contributors"
   }
 }

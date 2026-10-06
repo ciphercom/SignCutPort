@@ -91,3 +91,17 @@ fn macos_ttc_faces_and_postscript_names() {
     let d = import_svg(svg, "t", &lib, &ImportOptions::default()).unwrap();
     assert!(d.font_issues.is_empty(), "{:?}", d.font_issues);
 }
+
+/// Regression for a user's Inkscape logo: `font-family:Noteworthy` with
+/// `font-weight:normal`. Noteworthy (macOS) has only Light and Bold faces;
+/// CSS matching (and Quick Look) uses Light, not Bold.
+#[test]
+fn noteworthy_normal_is_light() {
+    let Some(lib) = lib_with("Noteworthy") else { return };
+    let id = lib.resolve("Noteworthy", 400, false).unwrap();
+    assert_eq!(lib.db().face(id).unwrap().weight.0, 300);
+    let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100">
+      <text x="0" y="80" style="font-weight:normal;font-size:60px;font-family:Noteworthy">Hipp</text></svg>"#;
+    let d = import_svg(svg, "t", &lib, &ImportOptions::default()).unwrap();
+    assert!(d.font_issues.is_empty(), "{:?}", d.font_issues);
+}

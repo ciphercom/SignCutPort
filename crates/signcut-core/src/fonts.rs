@@ -491,28 +491,50 @@ fn build_index(db: &Database) -> NameIndex {
     idx
 }
 
+/// CSS Fonts Level 4 §5.2 weight matching: lower key = better match.
+/// For a desired weight of 400–500, weights up to 500 are tried first
+/// (ascending), then *lighter* ones (descending), then heavier ones; below
+/// 400 lighter weights win, above 500 heavier weights win. This is what
+/// WebKit/CoreText do, e.g. "normal" on a Light+Bold family picks Light.
+fn css_weight_key(desired: u16, available: u16) -> (u8, u16) {
+    let (d, a) = (desired, available);
+    if a == d {
+        return (0, 0);
+    }
+    if (400..=500).contains(&d) {
+        if a > d && a <= 500 {
+            (1, a - d)
+        } else if a < d {
+            (2, d - a)
+        } else {
+            (3, a - d)
+        }
+    } else if d < 400 {
+        if a < d {
+            (1, d - a)
+        } else {
+            (2, a - d)
+        }
+    } else if a > d {
+        (1, a - d)
+    } else {
+        (2, d - a)
+    }
+}
+
 fn best_face(db: &Database, ids: &[ID], weight: u16, italic: Option<bool>) -> Option<ID> {
     ids.iter()
         .filter_map(|id| db.face(*id))
         .min_by_key(|f| {
+            // Prefer normal width, then the requested style (italic/oblique
+            // count as equivalent), then CSS weight matching.
+            let stretch_pen = u8::from(f.stretch != Stretch::Normal);
             let it = f.style != Style::Normal;
             let style_pen = match italic {
-                Some(want) if want != it => 10_000,
-                None if it => 5_000,
-                _ => 0,
+                Some(want) => u8::from(want != it),
+                None => u8::from(it),
             };
-            // CSS-ish: prefer heavier when asking >= 400, lighter otherwise.
-            let w = f.weight.0 as i32;
-            let want = weight as i32;
-            let wpen = if w == want {
-                0
-            } else if (want >= 400 && w > want) || (want < 400 && w < want) {
-                (w - want).abs()
-            } else {
-                (w - want).abs() + 1000
-            };
-            let stretch_pen = if f.stretch == Stretch::Normal { 0 } else { 50 };
-            style_pen + wpen + stretch_pen
+            (stretch_pen, style_pen, css_weight_key(weight, f.weight.0))
         })
         .map(|f| f.id)
 }
@@ -869,5 +891,35 @@ mod tests {
         assert_eq!(fams.len(), 1, "{fams:?}");
         assert!(lib.resolve(&fams[0].1[0], 400, false).is_some());
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn css_weight_matching() {
+        // "normal" on a Light + Bold family (e.g. Noteworthy) -> Light.
+        let pick = |want: u16, have: &[u16]| *have.iter().min_by_key(|a| css_weight_key(want, **a)).unwrap();
+        assert_eq!(pick(400, &[300, 700]), 300);
+        assert_eq!(pick(400, &[500, 300]), 500);
+        assert_eq!(pick(500, &[400, 600]), 400);
+        assert_eq!(pick(700, &[300, 600]), 600);
+        assert_eq!(pick(700, &[300, 800]), 800);
+        assert_eq!(pick(300, &[400, 200]), 200);
+        assert_eq!(pick(300, &[400, 700]), 400);
+    }
+
+    #[test]
+    fn normal_weight_prefers_light_over_bold_face() {
+        let dir = std::path::Path::new("/usr/share/fonts/opentype/inter");
+        let (l, b) = (dir.join("Inter-Light.otf"), dir.join("Inter-Bold.otf"));
+        if !l.exists() || !b.exists() {
+            return;
+        }
+        let mut db = Database::new();
+        db.load_font_file(&l).unwrap();
+        db.load_font_file(&b).unwrap();
+        let lib = FontLibrary::from_db(db);
+        let id = lib.resolve("Inter", 400, false).unwrap();
+        assert_eq!(lib.db().face(id).unwrap().weight.0, 300);
+        let id = lib.resolve("Inter", 700, false).unwrap();
+        assert_eq!(lib.db().face(id).unwrap().weight.0, 700);
     }
 }

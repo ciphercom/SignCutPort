@@ -58,14 +58,14 @@ Type text using any installed font, with a live preview drawn from the real glyp
 
 ## Install (macOS)
 
-1. Download `SignCut Port_*.dmg` from the latest **Release**, or from the `SignCut-Port-macOS` artifact of the newest **build** workflow run.
+1. Download `SignCut-Port-*-macOS-arm64.dmg` from the latest **Release**, or from the `SignCut-Port-macOS` artifact of the newest **build** workflow run.
 2. Drag the app to Applications.
 3. The app is not notarized, so macOS will block the first launch. Either right-click the app, choose **Open** and confirm, or run:
    ```sh
    xattr -dr com.apple.quarantine "/Applications/SignCut Port.app"
    ```
 
-It runs natively on both Apple Silicon and Intel (universal binary), macOS 10.15+.
+It runs natively on Apple Silicon Macs (M1 and newer), macOS 11+.
 
 ## Your first cut on a VEVOR cutter
 
@@ -106,7 +106,7 @@ npm install
 npm run tauri dev          # run the app
 cargo test --workspace     # core + backend tests
 npm run build              # typecheck + build UI
-npx tauri build --target universal-apple-darwin   # macOS .app/.dmg
+npx tauri build --target aarch64-apple-darwin     # macOS .app/.dmg (Apple Silicon)
 ```
 
 Running `npm run dev` on its own serves the UI in a normal browser with a mock backend (`src/mock`). That's useful for UI work and screenshots.

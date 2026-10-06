@@ -24,7 +24,7 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: aarch64-apple-darwin
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
@@ -34,23 +34,23 @@ jobs:
       - name: Tests
         run: cargo test -p signcut-core
 
-      - name: Build universal app (ad-hoc signed, identity "-")
+      - name: Build Apple Silicon app (ad-hoc signed, identity "-")
         env:
           APPLE_SIGNING_IDENTITY: "-"
-        run: npx tauri build --target universal-apple-darwin
+        run: npx tauri build --target aarch64-apple-darwin
 
       - name: Verify signature and package
         run: |
           set -euo pipefail
-          BUNDLE=target/universal-apple-darwin/release/bundle
+          BUNDLE=target/aarch64-apple-darwin/release/bundle
           APP="$BUNDLE/macos/SignCut Port.app"
           codesign --verify --deep --strict --verbose=2 "$APP"
           codesign -dv "$APP" 2>&1 | tee sig.txt
           grep -q "Signature=adhoc" sig.txt
           for b in "$APP"/Contents/MacOS/*; do echo "$b: $(lipo -archs "$b")"; done
           mkdir -p out
-          ditto -c -k --keepParent "$APP" "out/SignCut-Port-${TAG}-macOS-universal.app.zip"
-          cp "$BUNDLE"/dmg/*.dmg "out/SignCut-Port-${TAG}-macOS-universal.dmg"
+          ditto -c -k --keepParent "$APP" "out/SignCut-Port-${TAG}-macOS-arm64.app.zip"
+          cp "$BUNDLE"/dmg/*.dmg "out/SignCut-Port-${TAG}-macOS-arm64.dmg"
           (cd out && shasum -a 256 * > SHA256SUMS.txt)
           ls -la out
 
@@ -61,10 +61,10 @@ jobs:
           name: SignCut Port ${{ env.TAG }}
           files: out/*
           body: |
-            SignCut Port for macOS (universal: Apple Silicon + Intel, macOS 10.15+).
+            SignCut Port for macOS (Apple Silicon, macOS 11+).
 
             **Install**
-            1. Download `SignCut-Port-${{ env.TAG }}-macOS-universal.dmg` and drag *SignCut Port* to Applications.
+            1. Download `SignCut-Port-${{ env.TAG }}-macOS-arm64.dmg` and drag *SignCut Port* to Applications.
             2. The app is ad-hoc signed (not notarized). On first launch macOS will refuse to open it:
                - macOS 15+: open **System Settings › Privacy & Security**, scroll down and click **Open Anyway** for SignCut Port.
                - macOS 14 and older: right-click the app › **Open** › **Open**.

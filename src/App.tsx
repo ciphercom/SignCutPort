@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, dialogs, isTauri, onFileDrop, onFontsReady } from "./api";
+import { api, dialogs, isTauri, onFileDrop, onFontsReady, registerImportedFonts } from "./api";
 import { useDocument, serializeDoc, parseDoc } from "./store";
 import type {
   DesignObject,
@@ -129,7 +129,10 @@ export default function App() {
       const files = await api.startupFiles();
       for (const f of files) await openPath(f);
     })().catch((e) => notify(String(e), "error"));
-    const loadFonts = () => api.fontsList().then(setFonts).catch(() => {});
+    const loadFonts = () => {
+      api.fontsList().then(setFonts).catch(() => {});
+      registerImportedFonts().catch(() => {});
+    };
     loadFonts();
     let unsub: (() => void) | undefined;
     onFontsReady(loadFonts).then((u) => (unsub = u));
@@ -285,6 +288,7 @@ export default function App() {
       notify(String(e), "error");
     }
     setFonts(await api.fontsList());
+    registerImportedFonts().catch(() => {});
   };
 
   const loadFontFile = async () => {

@@ -146,6 +146,16 @@ async fn fonts_remove(app: AppHandle, file: String) -> Res<()> {
     .await
 }
 
+/// Raw bytes of an imported font file, so the UI can show previews in it.
+#[tauri::command]
+fn font_file(state: State<AppState>, file: String) -> Res<tauri::ipc::Response> {
+    if file.contains('/') || file.contains("..") {
+        return Err("Invalid font file name".into());
+    }
+    let data = std::fs::read(state.fonts_dir()?.join(&file)).map_err(|e| e.to_string())?;
+    Ok(tauri::ipc::Response::new(data))
+}
+
 #[tauri::command]
 fn fonts_folder(state: State<AppState>) -> Res<String> {
     let dir = state.fonts_dir()?;
@@ -506,6 +516,7 @@ pub fn run() {
             fonts_imported,
             fonts_remove,
             fonts_folder,
+            font_file,
             import_file,
             text_render,
             supported_extensions,

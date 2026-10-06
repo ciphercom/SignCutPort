@@ -33,6 +33,7 @@ export const api = {
   fontsImported: () => call<{ file: string; families: string[] }[]>("fonts_imported"),
   fontsRemove: (file: string) => call<void>("fonts_remove", { file }),
   fontsFolder: () => call<string>("fonts_folder"),
+  fontFile: (file: string) => call<ArrayBuffer>("font_file", { file }),
   importFile: (path: string, options?: ImportOptions) =>
     call<ImportedDesign>("import_file", { path, options: options ?? null }),
   textRender: (request: TextRequest) => call<ImportedDesign>("text_render", { request }),
@@ -120,3 +121,24 @@ export const dialogs = {
     return ask(text, { title: "SignCut Port", okLabel, cancelLabel: "Cancel" });
   },
 };
+
+const registeredFonts = new Set<string>();
+/** Make fonts imported into the app usable for CSS previews in the UI. */
+export async function registerImportedFonts() {
+  if (!isTauri) return;
+  const files = await api.fontsImported();
+  for (const f of files) {
+    if (registeredFonts.has(f.file)) continue;
+    registeredFonts.add(f.file);
+    try {
+      const buf = await api.fontFile(f.file);
+      for (const fam of f.families) {
+        const face = new FontFace(fam, buf);
+        await face.load();
+        document.fonts.add(face);
+      }
+    } catch {
+      /* preview only */
+    }
+  }
+}

@@ -55,21 +55,26 @@ jobs:
           ls -la out
 
       - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.TAG }}
-          target_commitish: ${{ github.sha }}
-          name: SignCut Port ${{ env.TAG }}
-          files: out/*
-          body: |
-            SignCut Port for macOS (Apple Silicon, macOS 11+).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cat > notes.md <<NOTES
+          SignCut Port for macOS (Apple Silicon, macOS 11+).
 
-            **Install**
-            1. Download `SignCut-Port-${{ env.TAG }}-macOS-arm64.dmg` and drag *SignCut Port* to Applications.
-            2. The app is ad-hoc signed (not notarized). On first launch macOS will refuse to open it:
-               - macOS 15+: open **System Settings › Privacy & Security**, scroll down and click **Open Anyway** for SignCut Port.
-               - macOS 14 and older: right-click the app › **Open** › **Open**.
-               - Or in Terminal: `xattr -dr com.apple.quarantine "/Applications/SignCut Port.app"`
-            3. After that it opens normally.
+          **Install**
+          1. Download \`SignCut-Port-${TAG}-macOS-arm64.dmg\` and drag *SignCut Port* to Applications.
+          2. The app is ad-hoc signed (not notarized). On first launch macOS will refuse to open it:
+             - macOS 15+: open **System Settings › Privacy & Security**, scroll down and click **Open Anyway** for SignCut Port.
+             - macOS 14 and older: right-click the app › **Open** › **Open**.
+             - Or in Terminal: \`xattr -dr com.apple.quarantine "/Applications/SignCut Port.app"\`
+          3. After that it opens normally.
 
-            See the README for connecting a VEVOR cutter and the first test cut.
+          See the README for connecting a VEVOR cutter and the first test cut.
+          NOTES
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" out/* --clobber
+          else
+            # Creates the tag on this commit if it does not exist yet.
+            gh release create "$TAG" out/* --target "$GITHUB_SHA" --title "SignCut Port $TAG" --notes-file notes.md
+          fi

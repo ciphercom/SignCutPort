@@ -161,6 +161,13 @@ code,
   padding-right: 10px;
   border-right: 1px solid var(--panel-border);
 }
+/* Secondary toolbar labels collapse to icon + tooltip on narrower windows
+   (German labels are longer). */
+@media (max-width: 1520px) {
+  .lbl-opt {
+    display: none;
+  }
+}
 .tb-spacer {
   flex: 1;
 }

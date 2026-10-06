@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { JSX, Ref } from "react";
 import type { DesignObject, Sheet, Units } from "../types";
@@ -432,11 +433,11 @@ export function Canvas(props: Props) {
         <g transform={`translate(${ox} ${oy})`} className="origin">
           <circle r={5} />
           <text x={8} y={16}>
-            Origin (cutter home)
+            {t("Origin (cutter home)")}
           </text>
         </g>
         <text x={ox + sheet.length * zoom - 4} y={oy + 16} className="sheet-caption" textAnchor="end">
-          {fmtLen(sheet.length, units)} × {fmtLen(sheet.width, units)} {units} · material feeds →
+          {fmtLen(sheet.length, units)} × {fmtLen(sheet.width, units)} {units} · {t("material feeds →")}
         </text>
         {selected.map((o) => {
           const b = objectBox(o);
@@ -479,8 +480,8 @@ export function Canvas(props: Props) {
       </svg>
       {objects.length === 0 && (
         <div className="empty-hint">
-          <div className="empty-title">Drop SVG, DXF or PLT files here</div>
-          <div>or use Import (⌘I) · Text (⌘T)</div>
+          <div className="empty-title">{t("Drop SVG, DXF or PLT files here")}</div>
+          <div>{t("or use Import (⌘I) · Text (⌘T)")}</div>
         </div>
       )}
     </div>

@@ -56,6 +56,14 @@ Type text using any installed font, with a live preview drawn from the real glyp
 - **Testing:** live preview with a cut-order simulation, test cut, test feed, and an option to view the raw plot data.
 - **Progress:** a progress bar, and the ability to stop sending.
 
+### Languages
+- English and German (Deutsch).
+- The language follows macOS by default and can be changed in the right sidebar (**Language / Sprache**).
+- Numbers use the matching decimal separator (`0,25 mm` in German).
+- Native dialogs follow the app language.
+- Translations live in `src/locales/de.ts`, with English source strings as keys.
+- `npm run check-i18n` (part of `npm run build`) fails if any string lacks a translation.
+
 ## Install (macOS)
 
 1. Download `SignCut-Port-*-macOS-arm64.dmg` from the latest **Release**, or from the `SignCut-Port-macOS` artifact of the newest **build** workflow run.

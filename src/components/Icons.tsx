@@ -15,6 +15,7 @@ const paths: Record<string, string> = {
   alignBottom: "M3 20h18M7 6h4v10H7zM14 10h4v6h-4z",
   arrange: "M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z",
   origin: "M4 20h16M4 20V4M4 20l7-7M8 20H4v-4",
+  fit: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
   cut: "M6 6a2.5 2.5 0 110 .1M6 18a2.5 2.5 0 110 .1M8 7.5L20 18M8 16.5L20 6",
 };
 

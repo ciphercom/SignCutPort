@@ -1,6 +1,7 @@
+import { fmtNum, t } from "../i18n";
 import { useEffect, useState } from "react";
 import type { DesignObject, Sheet, Units } from "../types";
-import { Box, fmtLen, objectBox, parseLen, rotateObjects, scaleObjects, unionBox } from "../geometry";
+import { Box, fmtLen, objectBox, parseLen, rotateObjects, scaleObjects, toUnits, unionBox } from "../geometry";
 
 /** A numeric field that commits on Enter / blur. */
 export function NumField(props: {
@@ -15,7 +16,7 @@ export function NumField(props: {
   digits?: number;
   title?: string;
 }) {
-  const fmt = (v: number | null) => (v === null || !isFinite(v) ? "" : String(+v.toFixed(props.digits ?? 2)));
+  const fmt = (v: number | null) => (v === null || !isFinite(v) ? "" : fmtNum(+v.toFixed(props.digits ?? 2)));
   const [text, setText] = useState(fmt(props.value));
   const [focused, setFocused] = useState(false);
   useEffect(() => {
@@ -57,7 +58,7 @@ export function NumField(props: {
             }
             if (e.key === "ArrowUp" || e.key === "ArrowDown") {
               e.preventDefault();
-              const n = parseFloat(text) || 0;
+              const n = parseFloat(text.replace(",", ".")) || 0;
               const st = (props.step ?? 1) * (e.shiftKey ? 10 : 1);
               let v = n + (e.key === "ArrowUp" ? st : -st);
               if (props.min !== undefined) v = Math.max(props.min, v);
@@ -87,8 +88,8 @@ export function PropertiesPanel(props: {
   if (!box) {
     return (
       <div className="panel">
-        <div className="panel-title">Selection</div>
-        <div className="muted small">Nothing selected. Click an object, or drag a box around several.</div>
+        <div className="panel-title">{t("Selection")}</div>
+        <div className="muted small">{t("Nothing selected. Click an object, or drag a box around several.")}</div>
       </div>
     );
   }
@@ -96,7 +97,7 @@ export function PropertiesPanel(props: {
     const m = new Map(updated.map((o) => [o.id, o]));
     props.onChange(objects.map((o) => m.get(o.id) ?? o));
   };
-  const toU = (mm: number) => +fmtLen(mm, units, units === "in" ? 3 : 2);
+  const toU = (mm: number) => toUnits(mm, units);
   const fromU = (v: number) => parseLen(String(v), units) ?? 0;
   // Y is measured from the origin edge (bottom of the sheet) to the bottom of the selection.
   const yFromOrigin = sheetWidth - (box.y + box.h);
@@ -123,31 +124,31 @@ export function PropertiesPanel(props: {
   return (
     <div className="panel">
       <div className="panel-title">
-        {sel.length === 1 ? single!.name : `${sel.length} objects`}
+        {sel.length === 1 ? single!.name : t("{n} objects", { n: sel.length })}
       </div>
       <div className="grid2">
-        <NumField label="X" value={toU(box.x)} onCommit={(v) => setPos(v, null)} suffix={units} title="Distance from the origin along the material" />
-        <NumField label="Y" value={toU(yFromOrigin)} onCommit={(v) => setPos(null, v)} suffix={units} title="Distance from the origin edge (bottom of the sheet)" />
-        <NumField label="W" value={toU(box.w)} onCommit={(v) => setSize(v, null)} suffix={units} min={0.01} />
-        <NumField label="H" value={toU(box.h)} onCommit={(v) => setSize(null, v)} suffix={units} min={0.01} />
+        <NumField label="X" value={toU(box.x)} onCommit={(v) => setPos(v, null)} suffix={units} title={t("Distance from the origin along the material")} />
+        <NumField label="Y" value={toU(yFromOrigin)} onCommit={(v) => setPos(null, v)} suffix={units} title={t("Distance from the origin edge (bottom of the sheet)")} />
+        <NumField label={t("W")} value={toU(box.w)} onCommit={(v) => setSize(v, null)} suffix={units} min={0.01} />
+        <NumField label={t("H")} value={toU(box.h)} onCommit={(v) => setSize(null, v)} suffix={units} min={0.01} />
       </div>
       <div className="row gap">
         <label className="check">
-          <input type="checkbox" checked={lock} onChange={(e) => setLock(e.target.checked)} /> Keep proportions
+          <input type="checkbox" checked={lock} onChange={(e) => setLock(e.target.checked)} /> {t("Keep proportions")}
         </label>
       </div>
       <div className="grid2">
         <NumField
-          label="Rotate"
+          label={t("Rotate")}
           value={rot}
           suffix="°"
           digits={1}
           onCommit={(v) => apply(rotateObjects(sel, center, single ? v - rot : v))}
-          title={single ? "Absolute rotation" : "Rotate the selection by this angle"}
+          title={single ? t("Absolute rotation") : t("Rotate the selection by this angle")}
         />
         {scalePct !== null ? (
           <NumField
-            label="Scale"
+            label={t("Scale")}
             value={scalePct}
             suffix="%"
             digits={1}
@@ -181,36 +182,36 @@ export function SheetPanel(props: {
   objectsExtent: number;
 }) {
   const { sheet, units } = props;
-  const toU = (mm: number) => +fmtLen(mm, units, units === "in" ? 2 : 1);
+  const toU = (mm: number) => toUnits(mm, units, units === "in" ? 2 : 1);
   const fromU = (v: number) => parseLen(String(v), units) ?? 0;
   return (
     <div className="panel">
-      <div className="panel-title">Material</div>
+      <div className="panel-title">{t("Material")}</div>
       <div className="grid2">
         <NumField
-          label="Width"
+          label={t("Width")}
           value={toU(sheet.width)}
           suffix={units}
           min={1}
           onCommit={(v) => props.onSheet({ ...sheet, width: fromU(v) })}
-          title="Width of the vinyl roll / sheet across the cutter"
+          title={t("Width of the vinyl roll / sheet across the cutter")}
         />
         <NumField
-          label="Length"
+          label={t("Length")}
           value={toU(sheet.length)}
           suffix={units}
           min={1}
           onCommit={(v) => props.onSheet({ ...sheet, length: fromU(v) })}
-          title="Length of material available along the feed direction"
+          title={t("Length of material available along the feed direction")}
         />
       </div>
       {props.maxWidth !== null && sheet.width > props.maxWidth + 0.5 && (
         <div className="warn small">
-          Wider than the cutter's max. cutting width ({fmtLen(props.maxWidth, units)} {units}).
+          {t("Wider than the cutter's max. cutting width ({w}).", { w: `${fmtLen(props.maxWidth, units)} ${units}` })}
         </div>
       )}
       {props.objectsExtent > sheet.length && (
-        <div className="warn small">Objects extend past the material length.</div>
+        <div className="warn small">{t("Objects extend past the material length.")}</div>
       )}
       <div className="row gap">
         <div className="seg">
@@ -222,11 +223,11 @@ export function SheetPanel(props: {
           </button>
         </div>
         <div className="seg">
-          <button className={props.filled ? "on" : ""} onClick={() => props.onFilled(true)} title="Filled view">
-            Filled
+          <button className={props.filled ? "on" : ""} onClick={() => props.onFilled(true)} title={t("Filled view")}>
+            {t("Filled")}
           </button>
-          <button className={!props.filled ? "on" : ""} onClick={() => props.onFilled(false)} title="Wireframe view (cut lines)">
-            Outline
+          <button className={!props.filled ? "on" : ""} onClick={() => props.onFilled(false)} title={t("Wireframe view (cut lines)")}>
+            {t("Outline")}
           </button>
         </div>
       </div>
@@ -245,8 +246,8 @@ export function ObjectsPanel(props: {
   const { objects, selection, units } = props;
   return (
     <div className="panel grow">
-      <div className="panel-title">Objects</div>
-      {objects.length === 0 && <div className="muted small">No objects yet.</div>}
+      <div className="panel-title">{t("Objects")}</div>
+      {objects.length === 0 && <div className="muted small">{t("No objects yet.")}</div>}
       <ul className="obj-list">
         {[...objects].reverse().map((o) => {
           const b = objectBox(o);
@@ -264,7 +265,7 @@ export function ObjectsPanel(props: {
             >
               <button
                 className={`eye ${o.hidden ? "off" : ""}`}
-                title={o.hidden ? "Show (will be cut)" : "Hide (won't be cut)"}
+                title={o.hidden ? t("Show (will be cut)") : t("Hide (won't be cut)")}
                 onClick={(e) => {
                   e.stopPropagation();
                   props.onToggleHidden(o.id);
@@ -289,13 +290,13 @@ export function ObjectsPanel(props: {
               {missing.length > 0 && (
                 <button
                   className="badge-warn"
-                  title="Fonts were missing on import — click to fix"
+                  title={t("Fonts were missing on import — click to fix")}
                   onClick={(e) => {
                     e.stopPropagation();
                     props.onFixFonts(o);
                   }}
                 >
-                  Font
+                  {t("Font")}
                 </button>
               )}
             </li>

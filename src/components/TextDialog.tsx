@@ -1,3 +1,4 @@
+import { t, tb } from "../i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import type { FontFamilyInfo, ImportedDesign, TextRequest, Units } from "../types";
@@ -21,7 +22,7 @@ export function FontPicker(props: {
   useEffect(() => selRef.current?.scrollIntoView({ block: "nearest" }), [props.value]);
   return (
     <div className="font-picker">
-      <input placeholder={`Search ${props.fonts.length} installed fonts…`} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+      <input placeholder={t("Search {n} installed fonts…", { n: props.fonts.length })} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
       <ul style={{ height: props.height ?? 240 }}>
         {list.map((f) => (
           <li
@@ -34,17 +35,17 @@ export function FontPicker(props: {
             <span className="font-sample" style={{ fontFamily: `"${f.family}"` }}>
               {props.sample || "Aa Bb 123"}
             </span>
-            <span className="muted small">{f.faces.length > 1 ? `${f.faces.length} styles` : ""}</span>
+            <span className="muted small">{f.faces.length > 1 ? t("{n} styles", { n: f.faces.length }) : ""}</span>
           </li>
         ))}
-        {list.length === 0 && <li className="muted">No font matches “{q}”.</li>}
+        {list.length === 0 && <li className="muted">{t("No font matches “{q}”.", { q })}</li>}
       </ul>
     </div>
   );
 }
 
 const DEFAULT_REQ: TextRequest = {
-  text: "Your text",
+  text: "",
   family: "Helvetica",
   weight: 400,
   italic: false,
@@ -69,7 +70,7 @@ export function TextDialog(props: {
       props.fonts.find((f) => f.family === "Arial")?.family ??
       props.fonts[0]?.family ??
       "Helvetica";
-    return { ...DEFAULT_REQ, family: fam };
+    return { ...DEFAULT_REQ, text: t("Your text"), family: fam };
   });
   const [design, setDesign] = useState<ImportedDesign | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,8 +110,8 @@ export function TextDialog(props: {
     <div className="modal-bg" onMouseDown={props.onCancel}>
       <div className="modal text-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>{props.initial ? "Edit text" : "Add text"}</h2>
-          <span className="muted small">Text is converted to cut outlines using the exact installed font.</span>
+          <h2>{props.initial ? t("Edit text") : t("Add text")}</h2>
+          <span className="muted small">{t("Text is converted to cut outlines using the exact installed font.")}</span>
         </div>
         <div className="text-body">
           <div className="text-left">
@@ -124,12 +125,12 @@ export function TextDialog(props: {
             />
             <FontPicker fonts={props.fonts} value={req.family} onChange={(f) => upd({ family: f })} sample={req.text.split("\n")[0].slice(0, 24)} />
             <button className="link" onClick={props.onLoadFont}>
-              Font not listed? Load a font file…
+              {t("Font not listed? Import a font file…")}
             </button>
           </div>
           <div className="text-right">
             <label className="field">
-              <span className="field-label">Style</span>
+              <span className="field-label">{t("Style")}</span>
               <select
                 value={`${req.weight}|${req.italic ? 1 : 0}`}
                 onChange={(e) => {
@@ -144,15 +145,15 @@ export function TextDialog(props: {
                 ))}
               </select>
             </label>
-            <NumField label="Font size" value={req.sizeMm} suffix="mm" min={0.5} onCommit={(v) => upd({ sizeMm: v })} title="Em size; the canvas shows the real letter height" />
-            <NumField label="Letter spacing" value={req.letterSpacingMm} suffix="mm" step={0.5} onCommit={(v) => upd({ letterSpacingMm: v })} />
-            <NumField label="Line height" value={req.lineHeight} suffix="×" step={0.1} min={0.5} onCommit={(v) => upd({ lineHeight: v })} />
+            <NumField label={t("Font size")} value={req.sizeMm} suffix="mm" min={0.5} onCommit={(v) => upd({ sizeMm: v })} title={t("Em size; the canvas shows the real letter height")} />
+            <NumField label={t("Letter spacing")} value={req.letterSpacingMm} suffix="mm" step={0.5} onCommit={(v) => upd({ letterSpacingMm: v })} />
+            <NumField label={t("Line height")} value={req.lineHeight} suffix="×" step={0.1} min={0.5} onCommit={(v) => upd({ lineHeight: v })} />
             <label className="field">
-              <span className="field-label">Align</span>
+              <span className="field-label">{t("Align")}</span>
               <div className="seg">
                 {(["start", "middle", "end"] as const).map((a) => (
                   <button key={a} className={req.align === a ? "on" : ""} onClick={() => upd({ align: a })}>
-                    {a === "start" ? "Left" : a === "middle" ? "Center" : "Right"}
+                    {a === "start" ? t("Left") : a === "middle" ? t("Center") : t("Right")}
                   </button>
                 ))}
               </div>
@@ -167,7 +168,7 @@ export function TextDialog(props: {
               ))}
             </svg>
           ) : (
-            <span className="muted">{busy ? "Rendering…" : "Type some text"}</span>
+            <span className="muted">{busy ? t("Rendering…") : t("Type some text")}</span>
           )}
           {design && (
             <div className="preview-size">
@@ -180,21 +181,23 @@ export function TextDialog(props: {
             {glyphIssues.map((g, i) =>
               g.kind === "missing-glyph" ? (
                 <div key={i}>
-                  “{g.requested}” has no glyphs for “{g.detail}” — {g.substitutedWith ? `taken from ${g.substitutedWith}` : "skipped"}.
+                  {g.substitutedWith
+                    ? t("“{font}” has no glyphs for “{chars}” — taken from {other}.", { font: g.requested, chars: g.detail ?? "", other: g.substitutedWith })
+                    : t("“{font}” has no glyphs for “{chars}” — skipped.", { font: g.requested, chars: g.detail ?? "" })}
                 </div>
               ) : (
-                <div key={i}>Font “{g.requested}” not found — using {g.substitutedWith}.</div>
+                <div key={i}>{t("Font “{font}” not found — using {other}.", { font: g.requested, other: g.substitutedWith ?? "?" })}</div>
               ),
             )}
           </div>
         )}
-        {error && <div className="error small">{error}</div>}
+        {error && <div className="error small">{tb(error)}</div>}
         <div className="modal-foot">
           <span />
           <div className="row gap">
-            <button onClick={props.onCancel}>Cancel</button>
+            <button onClick={props.onCancel}>{t("Cancel")}</button>
             <button className="primary" disabled={!design} onClick={() => design && props.onDone(req, design)}>
-              {props.initial ? "Update" : "Add to sheet"}
+              {props.initial ? t("Update") : t("Add to sheet")}
             </button>
           </div>
         </div>

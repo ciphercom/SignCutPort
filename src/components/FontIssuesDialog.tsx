@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useMemo, useState } from "react";
 import type { DesignObject, FontFamilyInfo } from "../types";
 
@@ -42,18 +43,17 @@ export function FontIssuesDialog(props: {
     <div className="modal-bg" onMouseDown={props.onClose}>
       <div className="modal fonts-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>Fonts in “{props.object.name}”</h2>
+          <h2>{t("Fonts in “{name}”", { name: props.object.name })}</h2>
         </div>
         <p className="small">
-          These fonts are used in the file but are not installed on this Mac. Instead of silently swapping them,
-          SignCut Port lets you choose what to use — or install / load the original font and re-import.
+          {t("These fonts are used in the file but are not installed on this Mac. Instead of silently swapping them, SignCut Port lets you choose what to use — or import the original font and re-import the file.")}
         </p>
         <table className="fonts-table">
           <thead>
             <tr>
-              <th>Requested in file</th>
-              <th>Currently used</th>
-              <th>Use instead</th>
+              <th>{t("Requested in file")}</th>
+              <th>{t("Currently used")}</th>
+              <th>{t("Use instead")}</th>
             </tr>
           </thead>
           <tbody>
@@ -77,7 +77,7 @@ export function FontIssuesDialog(props: {
                         })
                       }
                     >
-                      <option value="">(keep fallback)</option>
+                      <option value="">{t("(keep fallback)")}</option>
                       {props.fonts.map((f) => (
                         <option key={f.family} value={f.family}>
                           {f.family}
@@ -94,18 +94,22 @@ export function FontIssuesDialog(props: {
           <div className="warn small">
             {glyphs.map((g, i) => (
               <div key={i}>
-                Characters “{g.detail}” are not in {g.requested || "the font"}; taken from {g.substitutedWith ?? "another font"}.
+                {t("Characters “{chars}” are not in {font}; taken from {other}.", {
+                  chars: g.detail ?? "",
+                  font: g.requested || t("the font"),
+                  other: g.substitutedWith ?? t("another font"),
+                })}
               </div>
             ))}
           </div>
         )}
-        {!canReimport && <div className="muted small">This object was not imported from a file, so it cannot be re-imported.</div>}
+        {!canReimport && <div className="muted small">{t("This object was not imported from a file, so it cannot be re-imported.")}</div>}
         <div className="modal-foot">
           <button className="link" onClick={props.onLoadFont}>
-            Load a font file…
+            {t("Import a font file…")}
           </button>
           <div className="row gap">
-            <button onClick={props.onClose}>Keep as is</button>
+            <button onClick={props.onClose}>{t("Keep as is")}</button>
             <button
               className="primary"
               disabled={!canReimport}
@@ -114,7 +118,7 @@ export function FontIssuesDialog(props: {
                 props.onReimport(clean);
               }}
             >
-              Re-import
+              {t("Re-import")}
             </button>
           </div>
         </div>

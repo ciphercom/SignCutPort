@@ -1,3 +1,4 @@
+import { fmtNum } from "./i18n";
 import type { DesignObject, JobObject } from "./types";
 
 export type Mat = [number, number, number, number, number, number];
@@ -140,11 +141,18 @@ export function toJobObject(o: DesignObject): JobObject {
 
 export const MM_PER_IN = 25.4;
 export function fmtLen(mm: number, units: "mm" | "in", digits?: number) {
-  if (units === "in") return (mm / MM_PER_IN).toFixed(digits ?? 3);
-  return mm.toFixed(digits ?? 1);
+  if (units === "in") return fmtNum(mm / MM_PER_IN, digits ?? 3);
+  return fmtNum(mm, digits ?? 1);
 }
+/** Millimetres converted to display units as a number, rounded to `digits`. */
+export function toUnits(mm: number, units: "mm" | "in", digits?: number): number {
+  const v = units === "in" ? mm / MM_PER_IN : mm;
+  const d = digits ?? (units === "in" ? 3 : 2);
+  return Math.round(v * 10 ** d) / 10 ** d;
+}
+
 export function parseLen(v: string, units: "mm" | "in"): number | null {
-  const n = parseFloat(v.replace(",", "."));
+  const n = parseFloat(String(v).replace(",", "."));
   if (!isFinite(n)) return null;
   return units === "in" ? n * MM_PER_IN : n;
 }

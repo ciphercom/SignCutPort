@@ -1,3 +1,4 @@
+import { t, tb } from "../i18n";
 import { useEffect, useState } from "react";
 import { api } from "../api";
 
@@ -6,7 +7,7 @@ export function FontsDialog(props: { onClose: () => void; onImport: () => Promis
   const [files, setFiles] = useState<{ file: string; families: string[] }[] | null>(null);
   const [folder, setFolder] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const reload = () => api.fontsImported().then(setFiles).catch((e) => setError(String(e)));
+  const reload = () => api.fontsImported().then(setFiles).catch((e) => setError(tb(e)));
   useEffect(() => {
     reload();
     api.fontsFolder().then(setFolder).catch(() => {});
@@ -15,19 +16,17 @@ export function FontsDialog(props: { onClose: () => void; onImport: () => Promis
     <div className="modal-bg" onMouseDown={props.onClose}>
       <div className="modal fonts-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>Fonts</h2>
-          <span className="muted small">{props.systemFamilies} font families available</span>
+          <h2>{t("Fonts")}</h2>
+          <span className="muted small">{t("{n} font families available", { n: props.systemFamilies })}</span>
         </div>
         <p className="small">
-          SignCut Port uses every font installed on this Mac (including Adobe Fonts and font managers). Fonts you import here are
-          copied into the app and are always available — handy for fonts that are not installed in macOS. You can also drop
-          font files onto the window.
+          {t("SignCut Port uses every font installed on this Mac (including Adobe Fonts and font managers). Fonts you import here are copied into the app and are always available — handy for fonts that are not installed in macOS. You can also drop font files onto the window.")}
         </p>
         <table className="fonts-table">
           <thead>
             <tr>
-              <th>Imported font file</th>
-              <th>Family</th>
+              <th>{t("Imported font file")}</th>
+              <th>{t("Family")}</th>
               <th />
             </tr>
           </thead>
@@ -35,7 +34,7 @@ export function FontsDialog(props: { onClose: () => void; onImport: () => Promis
             {files?.length === 0 && (
               <tr>
                 <td colSpan={3} className="muted">
-                  No fonts imported yet.
+                  {t("No fonts imported yet.")}
                 </td>
               </tr>
             )}
@@ -57,23 +56,23 @@ export function FontsDialog(props: { onClose: () => void; onImport: () => Promis
                         await api.fontsRemove(f.file);
                         reload();
                       } catch (e) {
-                        setError(String(e));
+                        setError(tb(e));
                       }
                     }}
                   >
-                    Remove
+                    {t("Remove")}
                   </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {folder && <div className="muted small ellipsis" title={folder}>Stored in {folder}</div>}
+        {folder && <div className="muted small ellipsis" title={folder}>{t("Stored in {folder}", { folder })}</div>}
         {error && <div className="error small">{error}</div>}
         <div className="modal-foot">
           <span />
           <div className="row gap">
-            <button onClick={props.onClose}>Done</button>
+            <button onClick={props.onClose}>{t("Done")}</button>
             <button
               className="primary"
               onClick={async () => {
@@ -81,7 +80,7 @@ export function FontsDialog(props: { onClose: () => void; onImport: () => Promis
                 reload();
               }}
             >
-              Import fonts…
+              {t("Import fonts…")}
             </button>
           </div>
         </div>

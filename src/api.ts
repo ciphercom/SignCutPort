@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 // Typed wrappers around the Tauri backend. When the UI runs in a plain
 // browser (UI development, screenshots) a small mock backend is used.
 
@@ -118,7 +119,7 @@ export const dialogs = {
   async confirm(text: string, okLabel = "OK"): Promise<boolean> {
     if (!isTauri) return window.confirm(text);
     const { ask } = await import("@tauri-apps/plugin-dialog");
-    return ask(text, { title: "SignCut Port", okLabel, cancelLabel: "Cancel" });
+    return ask(text, { title: "SignCut Port", okLabel, cancelLabel: t("Cancel") });
   },
 };
 

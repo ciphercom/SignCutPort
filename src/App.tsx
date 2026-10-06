@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, dialogs, isTauri, onFileDrop, onFontsReady, registerImportedFonts } from "./api";
+import { LANGUAGES, getLangSetting, setLangSetting, t, tb, useLang } from "./i18n";
+import type { LangSetting } from "./i18n";
 import { useDocument, serializeDoc, parseDoc } from "./store";
 import type {
   DesignObject,
@@ -19,6 +21,7 @@ import { FontsDialog } from "./components/FontsDialog";
 import { CutConfig, CutDialog, DEFAULT_ENCODE, DEFAULT_SETTINGS } from "./components/CutDialog";
 import { Icon } from "./components/Icons";
 import { arrange, flipObjects, modelLabel, newId, objectBox, rotateObjects, toJobObject, unionBox } from "./geometry";
+import { fmtNum } from "./i18n";
 
 const LS_KEY = "signcut-port.config.v2";
 
@@ -68,6 +71,8 @@ const IMPORT_EXT = ["svg", "dxf", "plt", "hpgl", "hpg"];
 const FONT_EXT = ["ttf", "otf", "ttc", "otc", "dfont"];
 
 export default function App() {
+  const lang = useLang();
+  const [langSetting, setLangSettingState] = useState<LangSetting>(getLangSetting());
   const persisted = useMemo(loadPersisted, []);
   const [cutCfg, setCutCfg] = useState<CutConfig>(persisted.cut);
   const [units, setUnits] = useState<Units>(persisted.units);
@@ -120,7 +125,7 @@ export default function App() {
     (async () => {
       try {
         const sc = await api.driversDetectSignCut();
-        if (sc.found) notify(`Using the driver pack from your SignCut Pro 2 installation (${sc.modelsLoaded} models).`);
+        if (sc.found) notify(t("Using the driver pack from your SignCut Pro 2 installation ({n} models).", { n: sc.modelsLoaded }));
       } catch {
         /* optional */
       }
@@ -128,7 +133,7 @@ export default function App() {
       setMachines(m);
       const files = await api.startupFiles();
       for (const f of files) await openPath(f);
-    })().catch((e) => notify(String(e), "error"));
+    })().catch((e) => notify(tb(e), "error"));
     const loadFonts = () => {
       api.fontsList().then(setFonts).catch(() => {});
       registerImportedFonts().catch(() => {});
@@ -172,7 +177,7 @@ export default function App() {
         }
         prevModel.current = key;
       })
-      .catch((e) => notify(String(e), "error"));
+      .catch((e) => notify(tb(e), "error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cutCfg.manufacturer, cutCfg.model]);
 
@@ -215,16 +220,16 @@ export default function App() {
     async (paths: string[]) => {
       const created: DesignObject[] = [];
       for (const path of paths) {
-        setBusy(`Importing ${path.split("/").pop()}…`);
+        setBusy(t("Importing {file}…", { file: path.split("/").pop() ?? "" }));
         try {
           const d = await api.importFile(path);
           const o = placeNew(d, { source: { kind: "file", path } });
           created.push(o);
           stateRef.current = { ...stateRef.current, objects: [...stateRef.current.objects, o] };
-          if (d.warnings.length) notify(d.warnings.join(" "), "warn");
+          if (d.warnings.length) notify(d.warnings.map(tb).join(" "), "warn");
           if (d.fontIssues.some((i) => i.kind === "missing-font")) setFontDlg(o);
         } catch (e) {
-          notify(`${path.split("/").pop()}: ${e}`, "error");
+          notify(`${path.split("/").pop()}: ${tb(e)}`, "error");
         }
       }
       setBusy(null);
@@ -250,7 +255,7 @@ export default function App() {
         doc.load(f.objects, f.sheet, path);
         setTimeout(() => canvasRef.current?.fit(), 50);
       } catch (e) {
-        notify(String(e), "error");
+        notify(tb(e), "error");
       }
     } else await importPaths([path]);
   };
@@ -272,9 +277,9 @@ export default function App() {
       doc.setObjects(state.objects.map((x) => (x.id === o.id ? upd : x)));
       setFontDlg(null);
       const left = d.fontIssues.filter((i) => i.kind === "missing-font").length;
-      notify(left ? `${left} font(s) still missing.` : "Re-imported with the chosen fonts.", left ? "warn" : "info");
+      notify(left ? t("{n} font(s) still missing.", { n: left }) : t("Re-imported with the chosen fonts."), left ? "warn" : "info");
     } catch (e) {
-      notify(String(e), "error");
+      notify(tb(e), "error");
     }
   };
 
@@ -282,17 +287,17 @@ export default function App() {
     if (!paths.length) return;
     try {
       const r = await api.fontsImport(paths);
-      if (r.families.length) notify(`Imported ${r.families.join(", ")} — available from now on.`);
-      if (r.errors.length) notify(r.errors.join(" "), "error");
+      if (r.families.length) notify(t("Imported {fonts} — available from now on.", { fonts: r.families.join(", ") }));
+      if (r.errors.length) notify(r.errors.map(tb).join(" "), "error");
     } catch (e) {
-      notify(String(e), "error");
+      notify(tb(e), "error");
     }
     setFonts(await api.fontsList());
     registerImportedFonts().catch(() => {});
   };
 
   const loadFontFile = async () => {
-    await importFonts(await dialogs.openFiles("Font files", FONT_EXT));
+    await importFonts(await dialogs.openFiles(t("Font files"), FONT_EXT));
   };
 
   const selected = state.objects.filter((o) => state.selection.includes(o.id));
@@ -305,28 +310,28 @@ export default function App() {
 
   const actions = {
     import: async () => {
-      const paths = await dialogs.openFiles("Import designs", IMPORT_EXT);
+      const paths = await dialogs.openFiles(t("Import designs"), IMPORT_EXT);
       if (paths.length) importPaths(paths);
     },
     open: async () => {
-      const [p] = await dialogs.openFiles("Open document", ["scport"], false);
+      const [p] = await dialogs.openFiles(t("Open document"), ["scport"], false);
       if (p) openPath(p);
     },
     save: async (as = false) => {
       let path = state.filePath;
-      if (!path || as) path = await dialogs.saveFile("Save document", "Untitled.scport", ["scport"]);
+      if (!path || as) path = await dialogs.saveFile(t("Save document"), `${t("Untitled")}.scport`, ["scport"]);
       if (!path) return;
       if (!path.endsWith(".scport")) path += ".scport";
       try {
         await api.docSave(path, serializeDoc(state.objects, state.sheet));
         doc.markSaved(path);
-        notify(`Saved ${path.split("/").pop()}`);
+        notify(t("Saved {file}", { file: path.split("/").pop() ?? "" }));
       } catch (e) {
-        notify(String(e), "error");
+        notify(tb(e), "error");
       }
     },
     newDoc: async () => {
-      if (state.dirty && !(await dialogs.confirm("Discard the current layout?", "Discard"))) return;
+      if (state.dirty && !(await dialogs.confirm(t("Discard the current layout?"), t("Discard")))) return;
       doc.load([], state.sheet, null);
     },
     remove: () => {
@@ -386,7 +391,7 @@ export default function App() {
       const objs = (selected.length > 1 ? selected : state.objects).filter((o) => !o.hidden);
       if (!objs.length) return;
       update(arrange(objs, state.sheet.width, 5, 5));
-      notify("Arranged to use as little material as possible.");
+      notify(t("Arranged to use as little material as possible."));
     },
     selectAll: () => doc.select(state.objects.map((o) => o.id)),
     nudge: (dx: number, dy: number) => {
@@ -394,7 +399,7 @@ export default function App() {
     },
     cut: () => {
       if (!state.objects.some((o) => !o.hidden)) {
-        notify("Nothing to cut — import a design or add text first.", "warn");
+        notify(t("Nothing to cut — import a design or add text first."), "warn");
         return;
       }
       setCutOpen(true);
@@ -460,11 +465,11 @@ export default function App() {
   // Window title.
   useEffect(() => {
     if (!isTauri) return;
-    const name = state.filePath ? state.filePath.split("/").pop() : "Untitled";
+    const name = state.filePath ? state.filePath.split("/").pop() : t("Untitled");
     import("@tauri-apps/api/window").then(({ getCurrentWindow }) =>
-      getCurrentWindow().setTitle(`${name}${state.dirty ? " — Edited" : ""} · SignCut Port`),
+      getCurrentWindow().setTitle(`${name}${state.dirty ? ` — ${t("Edited")}` : ""} · SignCut Port`),
     );
-  }, [state.filePath, state.dirty]);
+  }, [state.filePath, state.dirty, lang]);
 
   const onTextDone = (req: TextRequest, d: ImportedDesign) => {
     if (textDlg?.edit) {
@@ -488,80 +493,80 @@ export default function App() {
     <div className="app">
       <header className="toolbar">
         <div className="tb-group">
-          <button onClick={actions.import} title="Import SVG, DXF or PLT (⌘I)">
-            <Icon name="import" /> Import
+          <button onClick={actions.import} title={t("Import SVG, DXF or PLT (⌘I)")}>
+            <Icon name="import" /> {t("Import")}
           </button>
-          <button onClick={() => setTextDlg({})} title="Add text with any installed font (⌘T)">
-            <Icon name="text" /> Text
+          <button onClick={() => setTextDlg({})} title={t("Add text with any installed font (⌘T)")}>
+            <Icon name="text" /> {t("Text")}
           </button>
-          <button onClick={() => setFontsOpen(true)} title="Fonts: import font files into SignCut Port">
-            <Icon name="font" /> Fonts
+          <button onClick={() => setFontsOpen(true)} title={t("Fonts: import font files into SignCut Port")}>
+            <Icon name="font" /> {t("Fonts")}
           </button>
         </div>
         <div className="tb-group">
-          <button className="icon" onClick={doc.undo} disabled={!state.past.length} title="Undo (⌘Z)">
+          <button className="icon" onClick={doc.undo} disabled={!state.past.length} title={t("Undo (⌘Z)")}>
             <Icon name="undo" />
           </button>
-          <button className="icon" onClick={doc.redo} disabled={!state.future.length} title="Redo (⇧⌘Z)">
+          <button className="icon" onClick={doc.redo} disabled={!state.future.length} title={t("Redo (⇧⌘Z)")}>
             <Icon name="redo" />
           </button>
         </div>
         <div className="tb-group">
-          <button className="icon" onClick={actions.duplicate} disabled={!hasSel} title="Duplicate (⌘D)">
+          <button className="icon" onClick={actions.duplicate} disabled={!hasSel} title={t("Duplicate (⌘D)")}>
             <Icon name="duplicate" />
           </button>
-          <button className="icon" onClick={() => actions.rotate(90)} disabled={!hasSel} title="Rotate 90° (R)">
+          <button className="icon" onClick={() => actions.rotate(90)} disabled={!hasSel} title={t("Rotate 90° (R)")}>
             <Icon name="rotate" />
           </button>
-          <button className="icon" onClick={() => actions.flip("h")} disabled={!hasSel} title="Mirror horizontally">
+          <button className="icon" onClick={() => actions.flip("h")} disabled={!hasSel} title={t("Mirror horizontally")}>
             <Icon name="flipH" />
           </button>
-          <button className="icon" onClick={() => actions.flip("v")} disabled={!hasSel} title="Mirror vertically">
+          <button className="icon" onClick={() => actions.flip("v")} disabled={!hasSel} title={t("Mirror vertically")}>
             <Icon name="flipV" />
           </button>
-          <button className="icon" onClick={actions.remove} disabled={!hasSel} title="Delete (⌫)">
+          <button className="icon" onClick={actions.remove} disabled={!hasSel} title={t("Delete (⌫)")}>
             <Icon name="trash" />
           </button>
         </div>
         <div className="tb-group">
-          <button className="icon" onClick={() => actions.align("left")} disabled={!hasSel} title="Align left">
+          <button className="icon" onClick={() => actions.align("left")} disabled={!hasSel} title={t("Align left")}>
             <Icon name="alignLeft" />
           </button>
-          <button className="icon" onClick={() => actions.align("hcenter")} disabled={!hasSel} title="Align centre">
+          <button className="icon" onClick={() => actions.align("hcenter")} disabled={!hasSel} title={t("Align centre")}>
             <Icon name="alignCenter" />
           </button>
-          <button className="icon" onClick={() => actions.align("top")} disabled={!hasSel} title="Align top">
+          <button className="icon" onClick={() => actions.align("top")} disabled={!hasSel} title={t("Align top")}>
             <Icon name="alignTop" />
           </button>
-          <button className="icon" onClick={() => actions.align("bottom")} disabled={!hasSel} title="Align bottom (origin side)">
+          <button className="icon" onClick={() => actions.align("bottom")} disabled={!hasSel} title={t("Align bottom (origin side)")}>
             <Icon name="alignBottom" />
           </button>
-          <button onClick={actions.arrange} disabled={!state.objects.length} title="Pack objects to save material">
-            <Icon name="arrange" /> Arrange
+          <button onClick={actions.arrange} disabled={!state.objects.length} title={t("Pack objects to save material")}>
+            <Icon name="arrange" /> <span className="lbl-opt">{t("Arrange")}</span>
           </button>
-          <button onClick={actions.toOrigin} disabled={!state.objects.length} title="Move to the cutter origin">
-            <Icon name="origin" /> To origin
+          <button onClick={actions.toOrigin} disabled={!state.objects.length} title={t("Move to the cutter origin")}>
+            <Icon name="origin" /> <span className="lbl-opt">{t("To origin")}</span>
           </button>
         </div>
         <div className="tb-group">
-          <button className="icon" onClick={() => canvasRef.current?.zoomBy(0.8)} title="Zoom out (⌘−)">
+          <button className="icon" onClick={() => canvasRef.current?.zoomBy(0.8)} title={t("Zoom out (⌘−)")}>
             −
           </button>
-          <span className="zoom-label" onClick={() => canvasRef.current?.zoom100()} title="Click for real size">
+          <span className="zoom-label" onClick={() => canvasRef.current?.zoom100()} title={t("Click for real size")}>
             {Math.round((zoom / (110 / 25.4)) * 100)}%
           </span>
-          <button className="icon" onClick={() => canvasRef.current?.zoomBy(1.25)} title="Zoom in (⌘+)">
+          <button className="icon" onClick={() => canvasRef.current?.zoomBy(1.25)} title={t("Zoom in (⌘+)")}>
             +
           </button>
-          <button onClick={() => canvasRef.current?.fit()} title="Fit (⌘0)">
-            Fit
+          <button onClick={() => canvasRef.current?.fit()} title={t("Fit (⌘0)")}>
+            <Icon name="fit" /> <span className="lbl-opt">{t("Fit")}</span>
           </button>
         </div>
         <div className="tb-spacer" />
-        <button className="machine-chip" onClick={() => setCutOpen(true)} title="Cutter and connection">
+        <button className="machine-chip" onClick={() => setCutOpen(true)} title={t("Cutter and connection")}>
           <span className="dot" data-on={cutCfg.port ? "1" : "0"} />
           <span>
-            <b>{cutCfg.model || "Choose cutter"}</b>
+            <b>{cutCfg.model || t("Choose cutter")}</b>
             <small>
               {cutCfg.port
                 ? cutCfg.port.kind === "serial"
@@ -572,13 +577,13 @@ export default function App() {
                       ? `${cutCfg.port.host}:${cutCfg.port.port}`
                       : cutCfg.port.kind === "printer"
                         ? cutCfg.port.name
-                        : "Save to file"
-                : "not connected"}
+                        : t("Save to file")
+                : t("not connected")}
             </small>
           </span>
         </button>
-        <button className="primary cut-btn" onClick={actions.cut} title="Cut (⌘P)">
-          <Icon name="cut" /> Cut
+        <button className="primary cut-btn" onClick={actions.cut} title={t("Cut (⌘P)")}>
+          <Icon name="cut" /> {t("Cut")}
         </button>
       </header>
 
@@ -607,7 +612,7 @@ export default function App() {
             onEdit={(o) => (o.source?.kind === "text" ? setTextDlg({ edit: o }) : o.fontIssues?.length ? setFontDlg(o) : undefined)}
             onZoom={setZoom}
           />
-          {dropHover && <div className="drop-overlay">Drop to import</div>}
+          {dropHover && <div className="drop-overlay">{t("Drop to import")}</div>}
         </section>
         <aside className="sidebar right">
           <PropertiesPanel objects={state.objects} selection={state.selection} units={units} sheetWidth={state.sheet.width} onChange={(objs) => doc.setObjects(objs)} />
@@ -622,16 +627,31 @@ export default function App() {
             objectsExtent={extent ? extent.x + extent.w : 0}
           />
           <div className="panel">
-            <div className="panel-title">Cutter</div>
+            <div className="panel-title">{t("Cutter")}</div>
             <div className="small">
               <b>{modelLabel(cutCfg.manufacturer, cutCfg.model)}</b>
             </div>
             {profile && (
               <div className="muted small">
-                Max width {profile.maxWidthMm} mm · {profile.language} · blade offset {cutCfg.settings.useBladeOffset ? `${cutCfg.settings.bladeOffset} mm` : "off"}
+                {t("Max width {w} mm", { w: profile.maxWidthMm })} · {profile.language} · {t("blade offset")}{" "}
+                {cutCfg.settings.useBladeOffset ? `${fmtNum(cutCfg.settings.bladeOffset)} mm` : t("off")}
               </div>
             )}
-            <button onClick={() => setCutOpen(true)}>Cutter &amp; connection…</button>
+            <button onClick={() => setCutOpen(true)}>{t("Cutter & connection…")}</button>
+          </div>
+          <div className="panel">
+            <div className="panel-title">{t("Language")}</div>
+            <select value={langSetting} onChange={(e) => {
+              const v = e.target.value as LangSetting;
+              setLangSettingState(v);
+              setLangSetting(v);
+            }}>
+              {LANGUAGES.map((l) => (
+                <option key={l.value} value={l.value}>
+                  {l.value === "system" ? t("System language") : l.label}
+                </option>
+              ))}
+            </select>
           </div>
         </aside>
       </div>
@@ -675,14 +695,14 @@ export default function App() {
           onConfig={setCutCfg}
           onClose={() => setCutOpen(false)}
           onLoadDrivers={async () => {
-            const [p] = await dialogs.openFiles("SignCut drivers", ["pak", "xml", "zip"], false);
+            const [p] = await dialogs.openFiles(t("SignCut drivers"), ["pak", "xml", "zip"], false);
             if (!p) return;
             try {
               const n = await api.driversLoad(p);
               setMachines(await api.machinesList());
-              notify(`Loaded ${n} cutter models.`);
+              notify(t("Loaded {n} cutter models.", { n }));
             } catch (e) {
-              notify(String(e), "error");
+              notify(tb(e), "error");
             }
           }}
         />

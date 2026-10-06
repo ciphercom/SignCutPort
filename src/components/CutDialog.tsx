@@ -15,6 +15,7 @@ import type {
 } from "../types";
 import { NumField } from "./Panels";
 import { fmtLen, modelLabel } from "../geometry";
+import { fmtInt, t, tb } from "../i18n";
 
 export interface CutConfig {
   manufacturer: string;
@@ -85,7 +86,7 @@ export function MachineSelect(props: {
   return (
     <div className="grid2">
       <label className="field">
-        <span className="field-label">Manufacturer</span>
+        <span className="field-label">{t("Manufacturer")}</span>
         <select
           value={props.manufacturer}
           onChange={(e) => {
@@ -101,7 +102,7 @@ export function MachineSelect(props: {
         </select>
       </label>
       <label className="field">
-        <span className="field-label">Model</span>
+        <span className="field-label">{t("Model")}</span>
         <select value={props.model} onChange={(e) => props.onChange(props.manufacturer, e.target.value)}>
           {(man?.models ?? []).map((m) => (
             <option key={m.name} value={m.name}>
@@ -163,7 +164,7 @@ export function CutDialog(props: {
         if (best) choosePort(best.port);
       }
     } catch (e) {
-      setError(String(e));
+      setError(tb(e));
     } finally {
       setScanning(false);
     }
@@ -199,7 +200,7 @@ export function CutDialog(props: {
           setError(null);
         }
       } catch (e) {
-        if (!cancelled) setError(String(e));
+        if (!cancelled) setError(tb(e));
       }
     }, 150);
     return () => {
@@ -214,14 +215,14 @@ export function CutDialog(props: {
     onCutProgress((p) => setProgress(p)).then((u) => unsub.push(u));
     onCutStatus((st) => {
       if (st.state === "pause") {
-        setPauseMsg(st.message || "Paused");
+        setPauseMsg(tb(st.message || t("Paused")));
         return;
       }
       setPauseMsg(null);
       setSending(null);
-      if (st.state === "done") setDoneMsg("Sent to the cutter.");
-      else if (st.state === "cancelled") setDoneMsg("Cancelled.");
-      else setError(st.message);
+      if (st.state === "done") setDoneMsg(t("Sent to the cutter."));
+      else if (st.state === "cancelled") setDoneMsg(t("Cancelled."));
+      else setError(tb(st.message));
     }).then((u) => unsub.push(u));
     return () => unsub.forEach((u) => u());
   }, []);
@@ -240,7 +241,7 @@ export function CutDialog(props: {
 
   const needPort = () => {
     if (!config.port) {
-      setError("Choose how the cutter is connected first.");
+      setError(t("Choose how the cutter is connected first."));
       return false;
     }
     return true;
@@ -257,18 +258,18 @@ export function CutDialog(props: {
       await api.jobStart(job, config.port!);
     } catch (e) {
       setSending(null);
-      setError(String(e));
+      setError(tb(e));
     }
   };
 
   const exportPlt = async () => {
-    const path = await dialogs.saveFile("Save plot file", "cut.plt", ["plt", "hpgl"]);
+    const path = await dialogs.saveFile(t("Save plot file"), "cut.plt", ["plt", "hpgl"]);
     if (!path) return;
     try {
       const n = await api.jobExport(job, path);
-      setDoneMsg(`Saved ${n.toLocaleString()} bytes to ${path}`);
+      setDoneMsg(t("Saved {bytes} bytes to {path}", { bytes: fmtInt(n), path }));
     } catch (e) {
-      setError(String(e));
+      setError(tb(e));
     }
   };
 
@@ -282,7 +283,7 @@ export function CutDialog(props: {
       await api.testCut(job, config.port!, config.testCutSize, [5, props.sheetWidth - 5 - config.testCutSize]);
     } catch (e) {
       setSending(null);
-      setError(String(e));
+      setError(tb(e));
     }
   };
 
@@ -294,7 +295,7 @@ export function CutDialog(props: {
       await api.testFeed(config.manufacturer, config.model, config.port!, 150);
     } catch (e) {
       setSending(null);
-      setError(String(e));
+      setError(tb(e));
     }
   };
 
@@ -343,12 +344,12 @@ export function CutDialog(props: {
     <div className="modal-bg">
       <div className="modal cut-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>Cut</h2>
+          <h2>{t("Cut")}</h2>
           <span className="muted">
             {modelLabel(config.manufacturer, config.model)}
-            {profile ? ` · ${profile.language} · max ${fmtLen(profile.maxWidthMm, units, 0)} ${units}` : ""}
+            {profile ? ` · ${profile.language} · ${t("max. {w}", { w: `${fmtLen(profile.maxWidthMm, units, 0)} ${units}` })}` : ""}
           </span>
-          <button className="close" onClick={props.onClose} disabled={!!sending} title="Close">
+          <button className="close" onClick={props.onClose} disabled={!!sending} title={t("Close")}>
             ✕
           </button>
         </div>
@@ -356,10 +357,10 @@ export function CutDialog(props: {
           <div className="cut-preview">
             <div className="preview-toolbar">
               <button onClick={() => setAnim(anim === null ? 0 : null)} disabled={!n}>
-                {anim === null ? "▶ Simulate" : "■ Stop"}
+                {anim === null ? `▶ ${t("Simulate")}` : `■ ${t("Stop")}`}
               </button>
               <span className="muted small">
-                Cutter view: origin ● at bottom-left (front-right of the cutter), material feeds →. Numbers show cut order.
+                {t("Cutter view: origin ● at bottom-left (front-right of the cutter), material feeds →. Numbers show cut order.")}
               </span>
             </div>
             <div className="preview-canvas">
@@ -407,26 +408,26 @@ export function CutDialog(props: {
               {stats && (
                 <>
                   <span>
-                    <b>{stats.paths}</b> paths
+                    <b>{stats.paths}</b> {t("paths")}
                   </span>
                   <span>
-                    cut <b>{fmtLen(stats.cutLengthMm / (units === "in" ? 1 : 1000), units === "in" ? "in" : "mm", 2)}</b>{" "}
+                    {t("cut")} <b>{fmtLen(stats.cutLengthMm / (units === "in" ? 1 : 1000), units === "in" ? "in" : "mm", 2)}</b>{" "}
                     {units === "in" ? "in" : "m"}
                   </span>
                   <span>
-                    travel <b>{fmtLen(stats.travelLengthMm / (units === "in" ? 1 : 1000), units === "in" ? "in" : "mm", 2)}</b>{" "}
+                    {t("travel")} <b>{fmtLen(stats.travelLengthMm / (units === "in" ? 1 : 1000), units === "in" ? "in" : "mm", 2)}</b>{" "}
                     {units === "in" ? "in" : "m"}
                   </span>
                   <span>
-                    uses <b>{fmtLen(Math.max(0, stats.maxX), units)}</b> × <b>{fmtLen(Math.max(0, stats.maxY), units)}</b> {units}
+                    {t("uses")} <b>{fmtLen(Math.max(0, stats.maxX), units)}</b> × <b>{fmtLen(Math.max(0, stats.maxY), units)}</b> {units}
                   </span>
-                  <span className="muted">{preview!.bytes.toLocaleString()} bytes</span>
+                  <span className="muted">{t("{bytes} bytes", { bytes: fmtInt(preview!.bytes) })}</span>
                 </>
               )}
             </div>
             {stats?.warnings.map((w, i) => (
               <div className="warn small" key={i}>
-                {w}
+                {tb(w)}
               </div>
             ))}
             {showData && preview && <pre className="plot-data">{preview.dataHead}</pre>}
@@ -434,7 +435,7 @@ export function CutDialog(props: {
 
           <div className="cut-settings">
             <section>
-              <h3>Cutter</h3>
+              <h3>{t("Cutter")}</h3>
               <MachineSelect
                 machines={props.machines}
                 manufacturer={config.manufacturer}
@@ -442,19 +443,19 @@ export function CutDialog(props: {
                 onChange={(m, mo) => props.onConfig({ ...config, manufacturer: m, model: mo })}
               />
               <button className="link small" onClick={props.onLoadDrivers}>
-                Load SignCut driver pack (drivers.pak / .xml)…
+                {t("Load SignCut driver pack (drivers.pak / .xml)…")}
               </button>
             </section>
 
             <section>
               <h3>
-                Connection{" "}
+                {t("Connection")}{" "}
                 <button className="mini" onClick={scan} disabled={scanning}>
-                  {scanning ? "Scanning…" : "↻ Rescan"}
+                  {scanning ? t("Scanning…") : `↻ ${t("Rescan")}`}
                 </button>
               </h3>
               <label className="field">
-                <span className="field-label">Port</span>
+                <span className="field-label">{t("Port")}</span>
                 <select
                   value={portKey(port)}
                   onChange={(e) => {
@@ -468,7 +469,7 @@ export function CutDialog(props: {
                   }}
                 >
                   <option value="" disabled>
-                    Choose…
+                    {t("Choose…")}
                   </option>
                   {ports.map((p) => (
                     <option key={portKey(p.port)} value={portKey(p.port)}>
@@ -477,10 +478,10 @@ export function CutDialog(props: {
                     </option>
                   ))}
                   {port?.kind === "serial" && !ports.some((p) => portKey(p.port) === portKey(port)) && (
-                    <option value={portKey(port)}>{port.path} (not connected)</option>
+                    <option value={portKey(port)}>{t("{port} (not connected)", { port: port.path })}</option>
                   )}
-                  <option value="tcp">Network (TCP/IP)…</option>
-                  <option value="file">Save to .plt file</option>
+                  <option value="tcp">{t("Network (TCP/IP)…")}</option>
+                  <option value="file">{t("Save to .plt file")}</option>
                 </select>
               </label>
               {port?.kind === "serial" && (
@@ -496,11 +497,11 @@ export function CutDialog(props: {
                     </select>
                   </label>
                   <label className="field">
-                    <span className="field-label">Handshake</span>
+                    <span className="field-label">{t("Handshake")}</span>
                     <select value={port.flow} onChange={(e) => props.onConfig({ ...config, port: { ...port, flow: e.target.value as "none" } })}>
                       <option value="hardware">RTS/CTS</option>
                       <option value="software">XON/XOFF</option>
-                      <option value="none">None</option>
+                      <option value="none">{t("None")}</option>
                     </select>
                   </label>
                   <label className="check">
@@ -511,25 +512,24 @@ export function CutDialog(props: {
               {port?.kind === "tcp" && (
                 <div className="grid2">
                   <label className="field">
-                    <span className="field-label">Host / IP</span>
+                    <span className="field-label">{t("Host / IP")}</span>
                     <input value={port.host} onChange={(e) => props.onConfig({ ...config, port: { ...port, host: e.target.value } })} onKeyDown={(e) => e.stopPropagation()} />
                   </label>
-                  <NumField label="Port" value={port.port} digits={0} min={1} max={65535} onCommit={(v) => props.onConfig({ ...config, port: { ...port, port: Math.round(v) } })} />
+                  <NumField label={t("Port")} value={port.port} digits={0} min={1} max={65535} onCommit={(v) => props.onConfig({ ...config, port: { ...port, port: Math.round(v) } })} />
                 </div>
               )}
               {ports.length === 0 && !scanning && (
                 <div className="muted small">
-                  No cutter found. VEVOR cutters connect as a USB-serial port (“/dev/cu.wchusbserial…” or “/dev/cu.usbserial…”). Check the cable and
-                  that the cutter is switched on, then rescan.
+                  {t("No cutter found. VEVOR cutters connect as a USB-serial port (“/dev/cu.wchusbserial…” or “/dev/cu.usbserial…”). Check the cable and that the cutter is switched on, then rescan.")}
                 </div>
               )}
             </section>
 
             <section>
-              <h3>Knife</h3>
+              <h3>{t("Knife")}</h3>
               <div className="grid2">
                 <NumField
-                  label="Blade offset"
+                  label={t("Blade offset")}
                   value={s.useBladeOffset ? s.bladeOffset : 0}
                   suffix="mm"
                   step={0.05}
@@ -537,17 +537,17 @@ export function CutDialog(props: {
                   max={2}
                   disabled={!s.useBladeOffset}
                   onCommit={(v) => setSettings({ bladeOffset: v })}
-                  title="Drag-knife compensation. 45° blade ≈ 0.25 mm, 60° ≈ 0.5 mm. Use 0 for pens or cutters with built-in compensation."
+                  title={t("Drag-knife compensation. 45° blade ≈ 0.25 mm, 60° ≈ 0.5 mm. Use 0 for pens or cutters with built-in compensation.")}
                 />
-                <NumField label="Overcut" value={s.overcut} suffix="mm" step={0.25} min={0} max={10} onCommit={(v) => setSettings({ overcut: v })} title="Extra cut past the start of closed shapes so corners close cleanly" />
-                <NumField label="Passes" value={s.passes} digits={0} min={1} max={10} onCommit={(v) => setSettings({ passes: Math.round(v) })} />
+                <NumField label={t("Overcut")} value={s.overcut} suffix="mm" step={0.25} min={0} max={10} onCommit={(v) => setSettings({ overcut: v })} title={t("Extra cut past the start of closed shapes so corners close cleanly")} />
+                <NumField label={t("Passes")} value={s.passes} digits={0} min={1} max={10} onCommit={(v) => setSettings({ passes: Math.round(v) })} />
                 {profile && profile.pens > 1 ? (
                   <label className="field">
-                    <span className="field-label">Tool</span>
+                    <span className="field-label">{t("Tool")}</span>
                     <select value={s.tool} onChange={(e) => setSettings({ tool: +e.target.value })}>
                       {Array.from({ length: profile.pens }, (_, i) => (
                         <option key={i} value={i + 1}>
-                          {profile.toolNames[i] ?? `Tool ${i + 1}`}
+                          {profile.toolNames[i] ? t(profile.toolNames[i]) : t("Tool {n}", { n: i + 1 })}
                         </option>
                       ))}
                     </select>
@@ -557,33 +557,33 @@ export function CutDialog(props: {
                 )}
               </div>
               <label className="check">
-                <input type="checkbox" checked={s.useBladeOffset} onChange={(e) => setSettings({ useBladeOffset: e.target.checked })} /> Blade offset compensation
+                <input type="checkbox" checked={s.useBladeOffset} onChange={(e) => setSettings({ useBladeOffset: e.target.checked })} /> {t("Blade offset compensation")}
               </label>
               {(supportsSpeed || supportsForce) && (
                 <>
                   <label className="check">
-                    <input type="checkbox" checked={config.encode.sendSpeedForce} onChange={(e) => setEncode({ sendSpeedForce: e.target.checked })} /> Send speed &amp; force from software
+                    <input type="checkbox" checked={config.encode.sendSpeedForce} onChange={(e) => setEncode({ sendSpeedForce: e.target.checked })} /> {t("Send speed & force from software")}
                   </label>
                   {config.encode.sendSpeedForce && (
                     <div className="grid2">
                       {supportsSpeed && (
                         <NumField
-                          label={`Speed${profile?.maxSpeed ? ` (${profile.minSpeed ?? 1}–${profile.maxSpeed})` : ""}`}
+                          label={`${t("Speed")}${profile?.maxSpeed ? ` (${profile.minSpeed ?? 1}–${profile.maxSpeed})` : ""}`}
                           value={s.speed}
                           digits={0}
                           min={0}
                           onCommit={(v) => setSettings({ speed: v || null })}
-                          title="Leave empty to use the cutter's panel setting"
+                          title={t("Leave empty to use the cutter's panel setting")}
                         />
                       )}
                       {supportsForce && (
                         <NumField
-                          label={`Force${profile?.maxForce ? ` (${profile.minForce ?? 1}–${profile.maxForce})` : ""}`}
+                          label={`${t("Force")}${profile?.maxForce ? ` (${profile.minForce ?? 1}–${profile.maxForce})` : ""}`}
                           value={s.force}
                           digits={0}
                           min={0}
                           onCommit={(v) => setSettings({ force: v || null })}
-                          title="Leave empty to use the cutter's panel setting"
+                          title={t("Leave empty to use the cutter's panel setting")}
                         />
                       )}
                     </div>
@@ -591,76 +591,76 @@ export function CutDialog(props: {
                 </>
               )}
               {profile && !supportsSpeed && !supportsForce && (
-                <div className="muted small">Speed and force are set on the cutter's control panel for this model.</div>
+                <div className="muted small">{t("Speed and force are set on the cutter's control panel for this model.")}</div>
               )}
             </section>
 
             <section>
-              <h3>Layout</h3>
+              <h3>{t("Layout")}</h3>
               <label className="field">
-                <span className="field-label">Position</span>
+                <span className="field-label">{t("Position")}</span>
                 <div className="seg">
-                  <button className={s.placement === "asPlaced" ? "on" : ""} onClick={() => setSettings({ placement: "asPlaced" })} title="Cut exactly where it is on the sheet">
-                    As placed
+                  <button className={s.placement === "asPlaced" ? "on" : ""} onClick={() => setSettings({ placement: "asPlaced" })} title={t("Cut exactly where it is on the sheet")}>
+                    {t("As placed")}
                   </button>
-                  <button className={s.placement === "origin" ? "on" : ""} onClick={() => setSettings({ placement: "origin" })} title="Move the job to the origin to save material">
-                    At origin
+                  <button className={s.placement === "origin" ? "on" : ""} onClick={() => setSettings({ placement: "origin" })} title={t("Move the job to the origin to save material")}>
+                    {t("At origin")}
                   </button>
                 </div>
               </label>
-              {s.placement === "origin" && <NumField label="Margin" value={s.margin} suffix="mm" min={0} onCommit={(v) => setSettings({ margin: v })} />}
+              {s.placement === "origin" && <NumField label={t("Margin")} value={s.margin} suffix="mm" min={0} onCommit={(v) => setSettings({ margin: v })} />}
               <label className="check">
-                <input type="checkbox" checked={s.mirror} onChange={(e) => setSettings({ mirror: e.target.checked })} /> Mirror (heat-transfer vinyl / window back-side)
+                <input type="checkbox" checked={s.mirror} onChange={(e) => setSettings({ mirror: e.target.checked })} /> {t("Mirror (heat-transfer vinyl / window back-side)")}
               </label>
               <div className="grid2">
-                <NumField label="Copies" value={s.copies} digits={0} min={1} max={500} onCommit={(v) => setSettings({ copies: Math.round(v) })} />
-                <NumField label="Gap" value={s.copyGap} suffix="mm" min={0} onCommit={(v) => setSettings({ copyGap: v })} disabled={s.copies < 2} />
+                <NumField label={t("Copies")} value={s.copies} digits={0} min={1} max={500} onCommit={(v) => setSettings({ copies: Math.round(v) })} />
+                <NumField label={t("Gap")} value={s.copyGap} suffix="mm" min={0} onCommit={(v) => setSettings({ copyGap: v })} disabled={s.copies < 2} />
               </div>
               {s.copies > 1 && (
                 <label className="check">
-                  <input type="checkbox" checked={s.stackCopies} onChange={(e) => setSettings({ stackCopies: e.target.checked })} /> Stack copies across the width
+                  <input type="checkbox" checked={s.stackCopies} onChange={(e) => setSettings({ stackCopies: e.target.checked })} /> {t("Stack copies across the width")}
                 </label>
               )}
               <div className="row gap">
                 <label className="check">
-                  <input type="checkbox" checked={s.weedBorder !== null} onChange={(e) => setSettings({ weedBorder: e.target.checked ? 3 : null })} /> Weeding border
+                  <input type="checkbox" checked={s.weedBorder !== null} onChange={(e) => setSettings({ weedBorder: e.target.checked ? 3 : null })} /> {t("Weeding border")}
                 </label>
                 {s.weedBorder !== null && <NumField label="" value={s.weedBorder} suffix="mm" min={0} onCommit={(v) => setSettings({ weedBorder: v })} />}
               </div>
             </section>
 
             <section>
-              <h3>Cutting order</h3>
+              <h3>{t("Cutting order")}</h3>
               <label className="field">
-                <span className="field-label">Sort</span>
+                <span className="field-label">{t("Sort")}</span>
                 <select value={s.sort} onChange={(e) => setSettings({ sort: e.target.value as CutSettings["sort"] })}>
-                  <option value="nearest">Shortest travel</option>
-                  <option value="bands">Along the length in bands (long jobs)</option>
-                  <option value="none">Document order</option>
+                  <option value="nearest">{t("Shortest travel")}</option>
+                  <option value="bands">{t("Along the length in bands (long jobs)")}</option>
+                  <option value="none">{t("Document order")}</option>
                 </select>
               </label>
-              {s.sort === "bands" && <NumField label="Band length" value={s.bandWidth} suffix="mm" min={20} onCommit={(v) => setSettings({ bandWidth: v })} />}
+              {s.sort === "bands" && <NumField label={t("Band length")} value={s.bandWidth} suffix="mm" min={20} onCommit={(v) => setSettings({ bandWidth: v })} />}
               <label className="check">
-                <input type="checkbox" checked={s.insideFirst} onChange={(e) => setSettings({ insideFirst: e.target.checked })} /> Cut inner shapes first
+                <input type="checkbox" checked={s.insideFirst} onChange={(e) => setSettings({ insideFirst: e.target.checked })} /> {t("Cut inner shapes first")}
               </label>
               <label className="check">
-                <input type="checkbox" checked={s.tangentialEmulation} onChange={(e) => setSettings({ tangentialEmulation: e.target.checked })} /> Turn blade before each cut (tangential emulation)
+                <input type="checkbox" checked={s.tangentialEmulation} onChange={(e) => setSettings({ tangentialEmulation: e.target.checked })} /> {t("Turn blade before each cut (tangential emulation)")}
               </label>
             </section>
 
             {props.colors.length > 1 && (
               <section>
-                <h3>Colours</h3>
+                <h3>{t("Colours")}</h3>
                 <ul className="layer-list">
                   {orderedColors.map((c, i) => {
                     const l = layerFor(c);
                     return (
                       <li key={c}>
-                        <input type="checkbox" checked={l.enabled} onChange={(e) => setLayer(c, { enabled: e.target.checked })} title="Cut this colour" />
+                        <input type="checkbox" checked={l.enabled} onChange={(e) => setLayer(c, { enabled: e.target.checked })} title={t("Cut this colour")} />
                         <i className="swatch" style={{ background: c }} />
                         <span className="mono small">{c}</span>
-                        <label className="check small" title="Pause before this colour to change tool or material">
-                          <input type="checkbox" checked={l.pauseBefore} disabled={i === 0} onChange={(e) => setLayer(c, { pauseBefore: e.target.checked })} /> pause
+                        <label className="check small" title={t("Pause before this colour to change tool or material")}>
+                          <input type="checkbox" checked={l.pauseBefore} disabled={i === 0} onChange={(e) => setLayer(c, { pauseBefore: e.target.checked })} /> {t("pause")}
                         </label>
                         <span className="grow" />
                         <button className="mini" onClick={() => moveLayer(c, -1)} disabled={i === 0}>
@@ -677,37 +677,37 @@ export function CutDialog(props: {
             )}
 
             <section>
-              <h3>After cutting</h3>
+              <h3>{t("After cutting")}</h3>
               <select value={s.afterCut} onChange={(e) => setSettings({ afterCut: e.target.value as CutSettings["afterCut"] })}>
-                <option value="returnToOrigin">Go back to the beginning</option>
-                <option value="feedPastJob">End after job (feed to the end of the job)</option>
-                <option value="stay">Leave the head where it stops</option>
+                <option value="returnToOrigin">{t("Go back to the beginning")}</option>
+                <option value="feedPastJob">{t("End after job (feed to the end of the job)")}</option>
+                <option value="stay">{t("Leave the head where it stops")}</option>
               </select>
-              {s.afterCut === "feedPastJob" && <NumField label="Extra feed" value={s.feedExtra} suffix="mm" min={0} onCommit={(v) => setSettings({ feedExtra: v })} />}
+              {s.afterCut === "feedPastJob" && <NumField label={t("Extra feed")} value={s.feedExtra} suffix="mm" min={0} onCommit={(v) => setSettings({ feedExtra: v })} />}
               {profile?.commands.pageFeed && (
                 <label className="check">
-                  <input type="checkbox" checked={config.encode.sendPageFeed} onChange={(e) => setEncode({ sendPageFeed: e.target.checked })} /> Send page-feed command (<code>{profile.commands.pageFeed}</code>) — SignCut always does
+                  <input type="checkbox" checked={config.encode.sendPageFeed} onChange={(e) => setEncode({ sendPageFeed: e.target.checked })} /> {t("Send page-feed command")} (<code>{profile.commands.pageFeed}</code>) — {t("SignCut always does")}
                 </label>
               )}
             </section>
 
             <details>
-              <summary>Advanced</summary>
+              <summary>{t("Advanced")}</summary>
               <label className="field">
-                <span className="field-label">Axis order</span>
+                <span className="field-label">{t("Axis order")}</span>
                 <select
                   value={config.encode.swapXy === null ? "auto" : config.encode.swapXy ? "swap" : "normal"}
                   onChange={(e) => setEncode({ swapXy: e.target.value === "auto" ? null : e.target.value === "swap" })}
                 >
-                  <option value="auto">Automatic (from driver)</option>
-                  <option value="normal">X = feed, Y = carriage</option>
-                  <option value="swap">Swapped</option>
+                  <option value="auto">{t("Automatic (from driver)")}</option>
+                  <option value="normal">{t("X = feed, Y = carriage")}</option>
+                  <option value="swap">{t("Swapped")}</option>
                 </select>
               </label>
-              <NumField label="Curve precision" value={s.curveTolerance} suffix="mm" step={0.01} min={0.005} max={1} digits={3} onCommit={(v) => setSettings({ curveTolerance: v })} />
-              <NumField label="Test cut size" value={config.testCutSize} suffix="mm" min={5} max={100} onCommit={(v) => props.onConfig({ ...config, testCutSize: v })} />
+              <NumField label={t("Curve precision")} value={s.curveTolerance} suffix="mm" step={0.01} min={0.005} max={1} digits={3} onCommit={(v) => setSettings({ curveTolerance: v })} />
+              <NumField label={t("Test cut size")} value={config.testCutSize} suffix="mm" min={5} max={100} onCommit={(v) => props.onConfig({ ...config, testCutSize: v })} />
               <label className="check">
-                <input type="checkbox" checked={showData} onChange={(e) => setShowData(e.target.checked)} /> Show plot data
+                <input type="checkbox" checked={showData} onChange={(e) => setShowData(e.target.checked)} /> {t("Show plot data")}
               </label>
             </details>
           </div>
@@ -718,22 +718,22 @@ export function CutDialog(props: {
 
         <div className="modal-foot">
           <div className="row gap">
-            <button onClick={testFeed} disabled={!!sending || port?.kind === "file"} title="Feed the material forward and back to check tracking">
-              Test feed
+            <button onClick={testFeed} disabled={!!sending || port?.kind === "file"} title={t("Feed the material forward and back to check tracking")}>
+              {t("Test feed")}
             </button>
-            <button onClick={testCut} disabled={!!sending || port?.kind === "file"} title="Cut a small square with a triangle near the origin">
-              Test cut
+            <button onClick={testCut} disabled={!!sending || port?.kind === "file"} title={t("Cut a small square with a triangle near the origin")}>
+              {t("Test cut")}
             </button>
             <button onClick={exportPlt} disabled={!!sending || !n}>
-              Save .plt…
+              {t("Save .plt…")}
             </button>
           </div>
           <div className="row gap">
             <button onClick={props.onClose} disabled={!!sending}>
-              Close
+              {t("Close")}
             </button>
             <button className="primary big" onClick={start} disabled={!!sending || !n}>
-              {port?.kind === "file" ? "Save plot file" : "Cut"}
+              {port?.kind === "file" ? t("Save plot file") : t("Cut")}
             </button>
           </div>
         </div>
@@ -741,14 +741,14 @@ export function CutDialog(props: {
         {sending && (
           <div className="sending">
             <div className="sending-box">
-              <h3>{pauseMsg ? "Paused" : sending === "test" ? "Sending test…" : "Cutting…"}</h3>
+              <h3>{pauseMsg ? t("Paused") : sending === "test" ? t("Sending test…") : t("Cutting…")}</h3>
               {pauseMsg ? (
                 <>
                   <p>{pauseMsg}</p>
                   <div className="row gap">
-                    <button onClick={() => api.jobResume(false)}>Cancel job</button>
+                    <button onClick={() => api.jobResume(false)}>{t("Cancel job")}</button>
                     <button className="primary" onClick={() => api.jobResume(true)}>
-                      Continue
+                      {t("Continue")}
                     </button>
                   </div>
                 </>
@@ -758,10 +758,10 @@ export function CutDialog(props: {
                     <div style={{ width: `${progress ? (100 * progress.sent) / Math.max(1, progress.total) : 0}%` }} />
                   </div>
                   <div className="muted small">
-                    {progress ? `${progress.sent.toLocaleString()} / ${progress.total.toLocaleString()} bytes` : "Connecting…"}
+                    {progress ? t("{sent} / {total} bytes", { sent: fmtInt(progress.sent), total: fmtInt(progress.total) }) : t("Connecting…")}
                   </div>
-                  <button onClick={() => api.jobCancel()}>Stop sending</button>
-                  <div className="muted small">Stopping only halts data still in the computer; press pause/reset on the cutter to stop the head.</div>
+                  <button onClick={() => api.jobCancel()}>{t("Stop sending")}</button>
+                  <div className="muted small">{t("Stopping only halts data still in the computer; press pause/reset on the cutter to stop the head.")}</div>
                 </>
               )}
             </div>

@@ -1,13 +1,15 @@
 name: release
 
-# Push a tag like v0.1 to build the macOS app and publish it as a GitHub Release.
+# Publish a GitHub Release with the macOS app, either by pushing a tag like
+# v0.2, or by running this workflow manually with a tag name: the tag is then
+# created on the commit the workflow runs on (Actions › release › Run workflow).
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to (re)build and release"
+        description: "Release tag to create, e.g. v0.1"
         required: true
 
 permissions:
@@ -20,8 +22,6 @@ jobs:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
@@ -58,6 +58,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           name: SignCut Port ${{ env.TAG }}
           files: out/*
           body: |

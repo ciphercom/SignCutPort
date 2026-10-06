@@ -1,0 +1,26 @@
+[package]
+name = "signcut-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Geometry, import, cut planning and plotter language generation for SignCut Port"
+
+[dependencies]
+usvg = "0.48"
+fontdb = "0.24"
+ttf-parser = "0.25"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+roxmltree = "0.21"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+dxf = "0.6"
+thiserror = "2"
+log = "0.4"
+base64 = "0.22"
+serialport = { version = "4", default-features = false }
+nusb = "0.2"
+
+[dev-dependencies]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-text = "21"

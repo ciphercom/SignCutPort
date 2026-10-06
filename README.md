@@ -15,6 +15,7 @@ The main reason it exists: **fonts**. SignCut Pro 2 on macOS swaps installed cus
 - Drag and drop from Finder works.
 
 ### Fonts done right
+- **Your own font library** — fonts can also be imported once (Fonts button, or drop font files on the window). They are copied into the app and available on every start, without being installed in macOS.
 - **Font locations** — reads every place macOS keeps fonts:
   - system, user and network font folders, including subfolders
   - every face of a `.ttc` collection
@@ -77,7 +78,7 @@ It runs natively on both Apple Silicon and Intel (universal binary), macOS 10.15
    - **…A / …S / …TS** (ARM-board) models use HPGL at 38400 baud.
    - These defaults come from the driver data, so you normally don't change anything.
 4. **Choose the port.** Likely cutters are marked ★.
-5. **Do a Test cut.** It cuts a 20 mm square with a triangle near the origin. Check that the corners are sharp and the backing isn't cut through.
+5. **Do a Test cut.** It cuts a 20 mm square with a right-angled triangle near the origin. Check that the corners are sharp and the backing isn't cut through. Also check the triangle: its right angle should be at the same corner as on screen. If it isn't, the output is mirrored or the axes are swapped.
    - Set the **blade offset** to match your blade: 45° ≈ 0.25 mm, 60° ≈ 0.5 mm. Use 0 for a pen.
    - Set the knife pressure on the cutter.
    - Rounded corners → increase the offset. Little "ears" on corners → decrease it.

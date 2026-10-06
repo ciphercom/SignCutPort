@@ -75,6 +75,38 @@ VEVOR models have no USB vendor ID in the definitions. They are driven through t
 
 **Connection types in SignCut:** serial, libusb, file, LPT/printer, the SignCut Spooler, and TCP. TCP defaults to port 9100, and 8080 for some Skycut/Bannercut models. `ActAsPrinterDriver` only affects Windows dialogs; it has no transport meaning on macOS.
 
+### Job stream (verified in the binary)
+
+SignCut Port reproduces this sequence. The one intentional difference is that coordinates are rounded rather than truncated.
+
+**Start of job**
+1. `StartCmd` is sent when the port opens, then `Initialise`.
+2. `SelectPen` is sent only when a job uses two or more tools, preceded by a bare `Tool_Up`.
+3. `Velocity` and `Force` are sent only when "Use software force and speed" is on.
+
+**Body**
+- Every point is its own statement: a pen-up move to the start of each path, then a pen-down statement per point.
+- There is no extra pen-up after the last point; the next pen-up move does that.
+
+**End of job**
+1. The head moves, depending on the setting:
+   - "End after job" (the default) moves pen-up to (end of job + feed-forward, 0).
+   - "Go back to beginning" moves pen-up to (0,0).
+2. `PageFeed` is sent.
+3. `AfterCutCmd` is sent, except after "Go back to beginning".
+4. `EndCmd` is sent.
+- Nothing else is appended. For VEVOR D-boards the `@` comes from their `PageFeed` (`U F @`).
+
+**Coordinates**
+- The first number is X, the feed/length axis.
+- The order is swapped only when `Rotate90 = 0` or `SwapAxis = 1`.
+- Values are not clamped.
+- In "optimized" mode the origin is shifted by the blade offset.
+
+**Example: VEVOR KH-720 with default settings**
+
+`;:H A L0 ECN U ` → `U x,y D x,y D … ` → `U<job end>,0 ` → `U F @ `
+
 ## Why custom fonts break in SignCut on macOS
 
 SignCut parses SVG itself and renders `<text>` with its own FreeType font index. That index has several gaps.

@@ -20,7 +20,8 @@ pub struct EncodeOptions {
     pub after_cut: AfterCut,
     /// Extra feed past the job when `after_cut == FeedPastJob` (mm).
     pub feed_extra: f64,
-    /// Send the driver's page-feed command at the end of the job.
+    /// Send the driver's page-feed command at the end of the job (SignCut
+    /// does this after every job; for VEVOR D-boards it is `U F @`).
     pub send_page_feed: bool,
 }
 
@@ -29,9 +30,10 @@ impl Default for EncodeOptions {
         Self {
             send_speed_force: true,
             swap_xy: None,
-            after_cut: AfterCut::ReturnToOrigin,
-            feed_extra: 50.0,
-            send_page_feed: false,
+            // SignCut defaults: "End after job", no extra feed, PageFeed sent.
+            after_cut: AfterCut::FeedPastJob,
+            feed_extra: 0.0,
+            send_page_feed: true,
         }
     }
 }
@@ -119,8 +121,9 @@ impl<'a> Writer<'a> {
         self.raw(&format!("{c}{v}{t}"));
     }
     fn units(&self, p: Pt) -> (i64, i64) {
-        let x = (p.x / self.xres).round().max(0.0) as i64;
-        let y = (p.y / self.yres).round().max(0.0) as i64;
+        // Rounded (SignCut truncates); not clamped, like SignCut.
+        let x = (p.x / self.xres).round() as i64;
+        let y = (p.y / self.yres).round() as i64;
         if self.swap {
             (y, x)
         } else {
@@ -163,23 +166,35 @@ pub fn encode(plan: &Plan, p: &MachineProfile, o: &EncodeOptions) -> Encoded {
     let mut w = writer(p, o);
     let mut enc = Encoded::default();
 
-    w.cmd(&c.initialise);
+    // SignCut order: StartCmd when opening the port, then Initialise.
     w.cmd(&c.start);
+    w.cmd(&c.initialise);
 
-    let mut last_pt = Pt::default();
+    // Pen selection is only sent when the job uses more than one tool.
+    let tools: std::collections::BTreeSet<u32> = plan
+        .ops
+        .iter()
+        .filter_map(|o| match o {
+            Op::Tool { tool, .. } => Some(*tool),
+            _ => None,
+        })
+        .collect();
+    let multi_tool = tools.len() >= 2;
+
     for op in &plan.ops {
         match op {
             Op::Tool { tool, speed, force } => {
-                if !o.send_speed_force {
-                    continue;
-                }
                 let foison = c.velocity.contains("FOISON") || c.force.contains("FOISON");
-                if p.pens > 1 || !c.select_pen.is_empty() {
+                if multi_tool && !c.select_pen.is_empty() {
+                    w.cmd(&c.tool_up);
                     if foison {
                         w.raw(&format!("SP{tool};"));
                     } else {
                         w.cmd_value(&c.select_pen, *tool as i64);
                     }
+                }
+                if !o.send_speed_force {
+                    continue;
                 }
                 if let Some(v) = speed {
                     let v = clamp_opt(*v, p.min_speed, p.max_speed).round() as i64;
@@ -200,7 +215,7 @@ pub fn encode(plan: &Plan, p: &MachineProfile, o: &EncodeOptions) -> Encoded {
             }
             Op::Pause { message } => {
                 // Lift and finish the current chunk; the app waits for the user.
-                w.mv(false, last_pt);
+                w.cmd(&c.tool_up);
                 enc.chunks.push(std::mem::take(&mut w.out));
                 enc.pauses.push(message.clone());
             }
@@ -219,32 +234,24 @@ pub fn encode(plan: &Plan, p: &MachineProfile, o: &EncodeOptions) -> Encoded {
                     prev = u;
                     w.mv(true, *q);
                 }
-                last_pt = *pts.last().unwrap();
             }
         }
     }
 
-    // End of job.
-    w.mv(false, last_pt);
+    // End of job, in SignCut's order: final pen-up move, PageFeed,
+    // AfterCutCmd (not after "go back to beginning"), EndCmd.
     match o.after_cut {
         AfterCut::ReturnToOrigin => w.mv(false, Pt::default()),
         AfterCut::FeedPastJob => w.mv(false, Pt::new(plan.end_x + o.feed_extra.max(0.0), 0.0)),
-        AfterCut::Stay => {}
+        AfterCut::Stay => w.cmd(&c.tool_up),
     }
-    w.cmd(&c.after_cut);
     if o.send_page_feed {
         w.cmd(&c.page_feed);
     }
-    w.cmd(&c.end);
-    // DMPL-style streams are closed with '@'.
-    let init = unescape(&c.initialise);
-    if init.starts_with(";:") {
-        let tail = String::from_utf8_lossy(&w.out[w.out.len().saturating_sub(16)..]).to_string();
-        if !tail.contains('@') {
-            let t = w.term.clone();
-            w.raw(&format!("@{t}"));
-        }
+    if o.after_cut != AfterCut::ReturnToOrigin {
+        w.cmd(&c.after_cut);
     }
+    w.cmd(&c.end);
     enc.chunks.push(w.out);
     enc.total_bytes = enc.chunks.iter().map(|c| c.len()).sum();
     enc
@@ -286,25 +293,22 @@ pub fn test_feed(p: &MachineProfile, mm: f64) -> Vec<u8> {
     let o = EncodeOptions::default();
     let mut w = writer(p, &o);
     let c = &p.commands;
-    w.cmd(&c.initialise);
     w.cmd(&c.start);
+    w.cmd(&c.initialise);
     w.mv(false, Pt::new(mm, 0.0));
     w.mv(false, Pt::new(0.0, 0.0));
-    if unescape(&c.initialise).starts_with(";:") {
-        let t = w.term.clone();
-        w.raw(&format!("@{t}"));
-    }
     w.out
 }
 
-/// SignCut-style test cut: a square of `size` mm with a triangle inside
-/// (local coordinates; place it with the job transform).
+/// Test cut: a square of `size` mm with a right triangle inside whose right
+/// angle sits bottom-left as seen on screen, so a mirrored or rotated result
+/// is easy to spot (local coordinates; place it with the job transform).
 pub fn test_cut_paths(size: f64) -> Vec<crate::plan::JobPath> {
     let s = size.max(5.0);
     let m = s * 0.2;
     vec![
         crate::plan::JobPath {
-            d: format!("M{m} {b}L{c} {b}L{h} {t}Z", b = s - m, c = s - m, h = s / 2.0, t = m),
+            d: format!("M{m} {b}L{c} {b}L{m} {t}Z", b = s - m, c = s - m, t = m),
             color: "#000000".into(),
         },
         crate::plan::JobPath {
@@ -362,8 +366,9 @@ mod tests {
         let d = vevor();
         let p = d.profile(&d.models[0]);
         let out = String::from_utf8(encode(&square_plan(None), &p, &EncodeOptions::default()).concat()).unwrap();
-        assert!(out.starts_with(";:H A L0 ECN U U0,0 D0,400 D400,400 D400,0 D0,0 U0,0 @ "), "{out}");
-        assert_eq!(out.matches('@').count(), 1, "{out}");
+        // Exactly SignCut's stream: Initialise, one statement per point,
+        // "End after job" move, PageFeed.
+        assert_eq!(out, ";:H A L0 ECN U U0,0 D0,400 D400,400 D400,0 D0,0 U400,0 U F @ ");
     }
 
     #[test]
@@ -371,8 +376,8 @@ mod tests {
         let d = vevor();
         let p = d.profile(&d.models[1]);
         let out = String::from_utf8(encode(&square_plan(Some(30.0)), &p, &EncodeOptions::default()).concat()).unwrap();
-        assert!(out.starts_with("IN;SP1;VS30;FS80;PU0,0;PD0,400;PD400,400;PD400,0;PD0,0;PU0,0;"), "{out}");
-        assert!(!out.contains('@'));
+        // Single tool: no SP; speed/force; PageFeed at the end.
+        assert_eq!(out, "IN;VS30;FS80;PU0,0;PD0,400;PD400,400;PD400,0;PD0,0;PU400,0;PG;");
     }
 
     #[test]

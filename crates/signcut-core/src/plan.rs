@@ -136,8 +136,9 @@ impl Default for CutSettings {
             copies: 1,
             copy_gap: 5.0,
             stack_copies: true,
-            after_cut: AfterCut::ReturnToOrigin,
-            feed_extra: 50.0,
+            // SignCut defaults: "End after job" with no extra feed.
+            after_cut: AfterCut::FeedPastJob,
+            feed_extra: 0.0,
             curve_tolerance: 0.05,
             layers: vec![],
         }
@@ -272,8 +273,14 @@ pub fn plan(objects: &[JobObject], s: &CutSettings, max_width: Option<f64>) -> P
     }
 
     // 4. Placement.
+    // Like SignCut, keep the blade offset clear of the origin so the
+    // compensated tool path never goes negative.
+    let blade_clear = if s.use_blade_offset { s.blade_offset.max(0.0) } else { 0.0 };
     let shift = match s.placement {
-        Placement::Origin => Pt::new(s.margin - job.min.x, s.margin - job.min.y),
+        Placement::Origin => Pt::new(
+            s.margin + blade_clear - job.min.x,
+            s.margin + blade_clear - job.min.y,
+        ),
         Placement::AsPlaced => Pt::default(),
     };
     if shift != Pt::default() {

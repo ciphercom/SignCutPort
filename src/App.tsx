@@ -20,7 +20,7 @@ import { CutConfig, CutDialog, DEFAULT_ENCODE, DEFAULT_SETTINGS } from "./compon
 import { Icon } from "./components/Icons";
 import { arrange, flipObjects, modelLabel, newId, objectBox, rotateObjects, toJobObject, unionBox } from "./geometry";
 
-const LS_KEY = "signcut-port.config.v1";
+const LS_KEY = "signcut-port.config.v2";
 
 interface Persisted {
   cut: CutConfig;

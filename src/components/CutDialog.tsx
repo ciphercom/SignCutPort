@@ -45,8 +45,8 @@ export const DEFAULT_SETTINGS: CutSettings = {
   copies: 1,
   copyGap: 5,
   stackCopies: true,
-  afterCut: "returnToOrigin",
-  feedExtra: 50,
+  afterCut: "feedPastJob",
+  feedExtra: 0,
   curveTolerance: 0.05,
   layers: [],
 };
@@ -54,9 +54,9 @@ export const DEFAULT_SETTINGS: CutSettings = {
 export const DEFAULT_ENCODE: EncodeOptions = {
   sendSpeedForce: true,
   swapXy: null,
-  afterCut: "returnToOrigin",
-  feedExtra: 50,
-  sendPageFeed: false,
+  afterCut: "feedPastJob",
+  feedExtra: 0,
+  sendPageFeed: true,
 };
 
 function portKey(p: Port | null): string {
@@ -680,13 +680,13 @@ export function CutDialog(props: {
               <h3>After cutting</h3>
               <select value={s.afterCut} onChange={(e) => setSettings({ afterCut: e.target.value as CutSettings["afterCut"] })}>
                 <option value="returnToOrigin">Go back to the beginning</option>
-                <option value="feedPastJob">Feed material past the job</option>
+                <option value="feedPastJob">End after job (feed to the end of the job)</option>
                 <option value="stay">Leave the head where it stops</option>
               </select>
               {s.afterCut === "feedPastJob" && <NumField label="Extra feed" value={s.feedExtra} suffix="mm" min={0} onCommit={(v) => setSettings({ feedExtra: v })} />}
               {profile?.commands.pageFeed && (
                 <label className="check">
-                  <input type="checkbox" checked={config.encode.sendPageFeed} onChange={(e) => setEncode({ sendPageFeed: e.target.checked })} /> Send page-feed command (<code>{profile.commands.pageFeed}</code>)
+                  <input type="checkbox" checked={config.encode.sendPageFeed} onChange={(e) => setEncode({ sendPageFeed: e.target.checked })} /> Send page-feed command (<code>{profile.commands.pageFeed}</code>) — SignCut always does
                 </label>
               )}
             </section>

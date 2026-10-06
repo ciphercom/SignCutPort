@@ -553,7 +553,7 @@ mod tests {
         "insideFirst": true, "mirror": false, "placement": "asPlaced", "margin": 0, "weedBorder": null,
         "copies": 1, "copyGap": 5, "stackCopies": true, "afterCut": "returnToOrigin", "feedExtra": 50,
         "curveTolerance": 0.05, "layers": [["#000000", {"enabled": true, "pauseBefore": false}]]},
-      "encode": {"sendSpeedForce": true, "swapXy": null, "afterCut": "feedPastJob", "feedExtra": 50, "sendPageFeed": false},
+      "encode": {"sendSpeedForce": true, "swapXy": null, "afterCut": "feedPastJob", "feedExtra": 0, "sendPageFeed": true},
       "manufacturer": "VEVOR", "model": "VEVOR KH-720"
     }"##;
 
@@ -578,8 +578,9 @@ mod tests {
             let (x, y): (i64, i64) = (x.parse().unwrap(), y.parse().unwrap());
             assert!((190..=610).contains(&x) && (790..=1210).contains(&y), "{tok}");
         }
-        // Returns to the origin (the dialog setting wins over the encode default) and closes DMPL.
-        assert!(out.contains(" U0,0 @"), "{out}");
+        // "Go back to beginning" (the dialog setting wins over the encode
+        // default), then PageFeed, as SignCut does.
+        assert!(out.ends_with(" U0,0 U F @ "), "{out}");
         assert!(out.trim_end().ends_with("@"), "{out}");
     }
 

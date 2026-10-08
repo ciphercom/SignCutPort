@@ -14,6 +14,7 @@ import type {
   Units,
 } from "../types";
 import { NumField } from "./Panels";
+import { MachinePicker } from "./MachinePicker";
 import { fmtLen, modelLabel } from "../geometry";
 import { fmtInt, t, tb } from "../i18n";
 
@@ -74,45 +75,6 @@ function portKey(p: Port | null): string {
     case "file":
       return "file";
   }
-}
-
-export function MachineSelect(props: {
-  machines: ManufacturerSummary[];
-  manufacturer: string;
-  model: string;
-  onChange: (manufacturer: string, model: string) => void;
-}) {
-  const man = props.machines.find((m) => m.manufacturer === props.manufacturer);
-  return (
-    <div className="grid2">
-      <label className="field">
-        <span className="field-label">{t("Manufacturer")}</span>
-        <select
-          value={props.manufacturer}
-          onChange={(e) => {
-            const m = props.machines.find((x) => x.manufacturer === e.target.value);
-            props.onChange(e.target.value, m?.models[0]?.name ?? "");
-          }}
-        >
-          {props.machines.map((m) => (
-            <option key={m.manufacturer} value={m.manufacturer}>
-              {m.manufacturer}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span className="field-label">{t("Model")}</span>
-        <select value={props.model} onChange={(e) => props.onChange(props.manufacturer, e.target.value)}>
-          {(man?.models ?? []).map((m) => (
-            <option key={m.name} value={m.name}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      </label>
-    </div>
-  );
 }
 
 export function CutDialog(props: {
@@ -436,10 +398,11 @@ export function CutDialog(props: {
           <div className="cut-settings">
             <section>
               <h3>{t("Cutter")}</h3>
-              <MachineSelect
+              <MachinePicker
                 machines={props.machines}
                 manufacturer={config.manufacturer}
                 model={config.model}
+                units={units}
                 onChange={(m, mo) => props.onConfig({ ...config, manufacturer: m, model: mo })}
               />
               <button className="link small" onClick={props.onLoadDrivers}>

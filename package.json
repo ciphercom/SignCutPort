@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
-    "check-i18n": "node scripts/check-i18n.mjs"
+    "check-i18n": "node scripts/check-i18n.mjs",
+    "test": "node --experimental-strip-types --no-warnings scripts/test-machines.mts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.0",

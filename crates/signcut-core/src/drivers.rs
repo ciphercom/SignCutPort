@@ -198,12 +198,21 @@ impl DriverFile {
                 });
             }
         }
-        Ok(DriverFile {
+        let mut d = DriverFile {
             manufacturer,
             config,
             commands,
             models,
-        })
+        };
+        d.dedup_models();
+        Ok(d)
+    }
+
+    /// Drop repeated model names, keeping the first definition. SignCut's own
+    /// files contain some (e.g. VEVOR EH-720CS and EH-1350CS appear twice).
+    pub fn dedup_models(&mut self) {
+        let mut seen = std::collections::HashSet::new();
+        self.models.retain(|m| seen.insert(m.name.clone()));
     }
 
     pub fn profile(&self, model: &ModelDef) -> MachineProfile {
@@ -306,22 +315,28 @@ impl Catalog {
     /// The catalog embedded in the application.
     pub fn builtin() -> Self {
         let json = include_str!("../data/machines.json");
-        let drivers: Vec<DriverFile> = serde_json::from_str(json).unwrap_or_default();
+        let mut drivers: Vec<DriverFile> = serde_json::from_str(json).unwrap_or_default();
+        drivers.iter_mut().for_each(DriverFile::dedup_models);
         let mut c = Catalog { drivers };
         c.drivers.push(generic_driver());
         c.sort();
         c
     }
 
+    /// Manufacturers A–Z and models in natural order ("KH-375" < "KH-1350").
     pub fn sort(&mut self) {
         self.drivers
-            .sort_by(|a, b| a.manufacturer.to_lowercase().cmp(&b.manufacturer.to_lowercase()));
+            .sort_by(|a, b| natural_cmp(&a.manufacturer, &b.manufacturer));
+        for d in &mut self.drivers {
+            d.models.sort_by(|a, b| natural_cmp(&a.name, &b.name));
+        }
     }
 
     /// Merge drivers into the catalog; same manufacturer name replaces.
     pub fn merge(&mut self, drivers: Vec<DriverFile>) -> usize {
         let mut n = 0;
-        for d in drivers {
+        for mut d in drivers {
+            d.dedup_models();
             n += d.models.len();
             if let Some(existing) = self
                 .drivers
@@ -375,6 +390,44 @@ impl Catalog {
             }
         }
         out
+    }
+}
+
+/// Case-insensitive comparison that orders digit runs numerically.
+pub fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    let (a, b) = (a.to_lowercase(), b.to_lowercase());
+    let (mut ia, mut ib) = (a.chars().peekable(), b.chars().peekable());
+    loop {
+        match (ia.peek().copied(), ib.peek().copied()) {
+            (None, None) => return Ordering::Equal,
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(x), Some(y)) if x.is_ascii_digit() && y.is_ascii_digit() => {
+                let mut na = String::new();
+                while let Some(c) = ia.peek().copied().filter(char::is_ascii_digit) {
+                    na.push(c);
+                    ia.next();
+                }
+                let mut nb = String::new();
+                while let Some(c) = ib.peek().copied().filter(char::is_ascii_digit) {
+                    nb.push(c);
+                    ib.next();
+                }
+                let (ta, tb) = (na.trim_start_matches('0'), nb.trim_start_matches('0'));
+                let ord = ta.len().cmp(&tb.len()).then_with(|| ta.cmp(tb));
+                if ord != Ordering::Equal {
+                    return ord;
+                }
+            }
+            (Some(x), Some(y)) => {
+                if x != y {
+                    return x.cmp(&y);
+                }
+                ia.next();
+                ib.next();
+            }
+        }
     }
 }
 
@@ -524,5 +577,40 @@ mod tests {
     fn builtin_catalog_loads() {
         let c = Catalog::builtin();
         assert!(c.drivers.iter().any(|d| d.manufacturer == "Generic"));
+    }
+
+    #[test]
+    fn natural_order() {
+        let mut v = vec!["KH-1350", "kh-720", "KH-375", "KH-720A", "KH-72"];
+        v.sort_by(|a, b| natural_cmp(a, b));
+        assert_eq!(v, ["KH-72", "KH-375", "kh-720", "KH-720A", "KH-1350"]);
+    }
+
+    #[test]
+    fn builtin_catalog_is_sorted_and_unique() {
+        let c = Catalog::builtin();
+        for w in c.drivers.windows(2) {
+            assert_ne!(natural_cmp(&w[0].manufacturer, &w[1].manufacturer), std::cmp::Ordering::Greater);
+        }
+        for d in &c.drivers {
+            let mut seen = std::collections::HashSet::new();
+            for m in &d.models {
+                assert!(seen.insert(&m.name), "duplicate {} {}", d.manufacturer, m.name);
+            }
+        }
+        let v = c.drivers.iter().find(|d| d.manufacturer == "VEVOR").unwrap();
+        let pos = |n: &str| v.models.iter().position(|m| m.name == n).unwrap();
+        assert!(pos("VEVOR KH-375") < pos("VEVOR KH-720") && pos("VEVOR KH-720") < pos("VEVOR KH-1350"));
+    }
+
+    #[test]
+    fn duplicate_models_in_xml_are_dropped() {
+        let xml = r#"<Driver><Manufacturer>X</Manufacturer><Models>
+          <Plotter><Name>A</Name><MaxWidth>100</MaxWidth><MaxLength>1</MaxLength></Plotter>
+          <Plotter><Name>A</Name><MaxWidth>200</MaxWidth><MaxLength>1</MaxLength></Plotter>
+        </Models></Driver>"#;
+        let d = DriverFile::from_xml(xml).unwrap();
+        assert_eq!(d.models.len(), 1);
+        assert_eq!(d.models[0].max_width, 100.0);
     }
 }

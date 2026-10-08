@@ -922,3 +922,65 @@ code,
   background: var(--accent);
   transition: width 0.15s;
 }
+
+/* cutter picker */
+.machine-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.machine-picker input[type="search"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.model-list {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  height: 168px;
+  overflow-y: auto;
+  border: 1px solid var(--field-border);
+  border-radius: 8px;
+  background: var(--field);
+}
+.model-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.model-list li:hover,
+.model-list li.active {
+  background: color-mix(in srgb, var(--sel) 10%, transparent);
+}
+.model-list li.sel {
+  background: var(--sel);
+  color: white;
+}
+.model-list li.sel .model-maker,
+.model-list li.sel .model-width {
+  color: rgba(255, 255, 255, 0.85);
+}
+.model-list li.empty {
+  cursor: default;
+}
+.model-name {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.model-maker {
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.model-width {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

@@ -163,6 +163,9 @@ export const de: Record<string, string> = {
 
   // ---- cut dialog
   "Manufacturer": "Hersteller",
+  "Search": "Suche",
+  "e.g. “vevor 720”": "z. B. „vevor 720“",
+  "No cutter matches “{q}”.": "Kein Plotter passt zu „{q}“.",
   "Model": "Modell",
   "Paused": "Pausiert",
   "Sent to the cutter.": "An den Plotter gesendet.",
